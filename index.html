@@ -32,8 +32,7 @@
     <div class="group">
       <span class="group-label" data-i18n="lbl.export">Export</span>
       <button data-cmd="exportPdf" class="primary" data-i18n-title="tip.pdf"><span data-i18n="btn.pdf">PDF</span> <span class="paper-tag" id="paperTag">A3</span></button>
-      <button data-cmd="exportPng" data-i18n-title="tip.png">PNG</button>
-      <button data-cmd="exportSvg" data-i18n-title="tip.svg">SVG</button>
+      <button data-cmd="exportDxf" data-i18n-title="tip.dxf">DXF</button>
       <button data-cmd="print" data-i18n="btn.printOnly" data-i18n-title="tip.print">Print</button>
     </div>
     <div class="group">
@@ -43,7 +42,8 @@
       <button data-cmd="props" class="mobile-only" data-i18n="btn.props">Properties</button>
       <select id="langSel" class="lang" data-i18n-title="tip.lang" aria-label="Language"></select>
     </div>
-    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+    <input type="file" id="fileInput" accept=".bpi,.json,application/json,application/octet-stream" hidden>
+    <input type="file" id="settingsInput" accept=".json,application/json" hidden>
   </header>
 
   <main>
@@ -51,6 +51,7 @@
     <section class="canvas-wrap" id="canvasWrap">
       <svg id="canvas" tabindex="0" aria-label="Drawing canvas"></svg>
       <svg id="compass" width="110" height="96" viewBox="0 0 110 96" aria-hidden="true"></svg>
+      <label class="projbox" id="projBox"><span data-i18n="tf.project">Project</span><input type="text" id="projName" autocomplete="off" spellcheck="false"></label>
       <div class="planebar" id="planebar" data-i18n-title="tip.plane" hidden></div>
       <div class="typed" id="typed" hidden></div>
       <div class="popup" id="popup" hidden></div>
@@ -73,6 +74,7 @@
   <script src="js/i18n.js"></script>
   <script src="js/core.js"></script>
   <script src="js/render.js"></script>
+  <script src="js/dxf.js"></script>
   <script src="js/export.js"></script>
   <script src="js/editor.js"></script>
 </body>

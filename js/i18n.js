@@ -6,13 +6,13 @@
   const en = {
     'app.title': 'PipeIso – Piping Isometric Editor',
     'btn.new': 'New', 'tip.new': 'New drawing',
-    'btn.open': 'Open…', 'tip.open': 'Open a .pipeiso.json file',
+    'btn.open': 'Open…', 'tip.open': 'Open a drawing file (.bpi)',
     'btn.save': 'Save', 'tip.save': 'Save drawing as file (Ctrl+S)',
     'btn.undo': 'Undo', 'tip.undo': 'Undo (Ctrl+Z)',
     'btn.redo': 'Redo', 'tip.redo': 'Redo (Ctrl+Y)',
     'btn.fit': 'Fit', 'tip.fit': 'Zoom to fit (Home)',
     'lbl.export': 'Export',
-    'tip.svg': 'Download A3 sheet as SVG', 'tip.png': 'Download A3 sheet as PNG (300 dpi)',
+    'tip.dxf': 'Download the sheet as a DXF file for CAD (paper size in Settings)',
     'btn.print': 'Print / PDF', 'tip.print': 'Print the sheet (Ctrl+P)',
     'tip.lang': 'Language',
 
@@ -71,7 +71,7 @@
 
     'err.min': 'Min. {n}', 'err.pos': 'Between 1 and 99', 'err.len': 'Length must be greater than 0.',
     'err.loop': 'This pipe is part of a closed loop, so its length can\'t be changed on its own.',
-    'err.open': 'Could not open file: {m}', 'err.notPipeIso': 'This file is not a PipeIso drawing.', 'err.png': 'Could not render PNG.',
+    'err.open': 'Could not open file: {m}', 'err.notPipeIso': 'This file is not a PipeIso drawing.', 'err.render': 'Could not create the sheet.',
     'confirm.new': 'Start a new drawing? The current drawing is cleared (you can still undo).',
 
     'tf.project': 'Project', 'tf.client': 'Client', 'tf.lineNo': 'Line no.', 'tf.drawingNo': 'Drawing no.',
@@ -103,7 +103,7 @@
     'err.insertLoop': 'Can\'t add it here: this pipe is part of a closed loop.', 'err.insertComp': 'Components can only be added to a pipe.',
     'tag.insert': '+{len} mm',
     'btn.pdf': 'PDF', 'tip.pdf': 'Download the sheet as a PDF file (paper size in Settings)',
-    'btn.printOnly': 'Print', 'btn.share': 'Share', 'tip.share': 'Share or send the drawing (PDF, PNG, SVG or drawing file)',
+    'btn.printOnly': 'Print', 'btn.share': 'Share', 'tip.share': 'Share or send the drawing (PDF, DXF or drawing file)',
     'btn.settings': 'Settings', 'tip.settings': 'Settings: company logo, website, creator, paper size, drawing options',
     'btn.install': 'Install app', 'tip.install': 'Add PipeIso to your home screen or desktop',
     'set.title': 'Settings', 'set.company': 'Company', 'set.logo': 'Company logo (PNG)', 'set.logoUpload': 'Upload PNG…',
@@ -115,8 +115,8 @@
     'set.installText': 'PipeIso can be added to the home screen and then works offline. Chrome / Edge: “Install app”. iPhone / iPad (Safari): Share → “Add to Home Screen”. Android: menu ⋮ → “Add to Home screen”. This needs the app to be opened from a web address (https), for example GitHub Pages – not as a file from your computer.',
     'set.installed': 'PipeIso is running as an installed app.',
     'err.logoType': 'Please choose a PNG file.', 'err.logoSave': 'The logo could not be saved (the image is too large).',
-    'sh2.title': 'Share', 'sh2.pdf': 'PDF ({paper})', 'sh2.pdfSub': 'For email, chat and printing', 'sh2.png': 'Image (PNG)', 'sh2.pngSub': '300 dpi',
-    'sh2.svg': 'Vector graphic (SVG)', 'sh2.svgSub': 'For CAD and graphics programs', 'sh2.json': 'Drawing file (.pipeiso.json)',
+    'sh2.title': 'Share', 'sh2.pdf': 'PDF ({paper})', 'sh2.pdfSub': 'For email, chat and printing',
+    'sh2.dxf': 'CAD drawing (DXF, {paper})', 'sh2.dxfSub': 'For AutoCAD, LibreCAD and other CAD programs', 'sh2.json': 'Drawing file (.bpi)',
     'sh2.jsonSub': 'Can be opened and edited again in PipeIso', 'sh2.noShare': 'This browser can\'t share files directly, so the file is downloaded instead.',
     'sh2.done': 'Shared.', 'sh2.downloaded': 'Downloaded: {name}', 'sh2.working': 'Preparing…',
     'sh.creator': 'Creator',
@@ -130,6 +130,20 @@
     'set.lenHint': 'Empty fields use the typical length shown in grey. These lengths are used for new components; components already drawn keep their length.',
     'set.lenReset': 'Reset this component to typical lengths', 'set.redStep': 'Small end of new reducers',
     'set.red1': 'One size smaller', 'set.red2': 'Two sizes smaller',
+    'prj.ph': 'Project name',
+    'cats.pipes': 'Pipes', 'cats.valves': 'Valves', 'cats.flanges': 'Flanges', 'cats.reducers': 'Reducers',
+    'cats.flex': 'Flex', 'cats.other': 'Silencers', 'cats.marks': 'Marks',
+    'tip.catBtn': 'tap to open, long-press to move', 'fav.hintShort': 'Long-press a part to add it to Favorites.',
+    'set.display': 'Display', 'set.gridColor': 'Colour of the isometric paper lines', 'set.default': 'Default',
+    'set.gridColorHint': 'Used on screen and when the paper is printed on the sheet.',
+    'set.showCompass': 'Show compass',
+    'set.tpl': 'Title block template',
+    'set.tplHint': 'New drawings start with these values. Empty fields keep the usual default. The project name is entered per drawing (next to the compass); the date is always today.',
+    'set.tplFromDoc': 'Take values from current drawing', 'set.tplApply': 'Fill current drawing from template', 'set.tplClear': 'Clear template',
+    'set.tplApplied': 'Title block of the current drawing filled in.',
+    'set.backup': 'Back up settings', 'set.exportSettings': 'Export settings…', 'set.importSettings': 'Import settings…',
+    'set.backupHint': 'Saves company details and logo, title block template, standard lengths, favorites, display, language and drawing options in one file. Import it in another browser or on another device.',
+    'set.imported': 'Settings imported.', 'err.settingsFile': 'This file is not a PipeIso settings file.',
     'help': `<p><b>Quick start</b></p>
       <p>1. Pick <b>KF pipe</b> or <b>ISO-K pipe</b> and click or tap a start point. Existing points snap (green ring).</p>
       <p>2. Move in the direction you want and click or tap, or type a length (mm) and press <kbd>Enter</kbd>. Each point continues the run and makes an elbow.</p>
@@ -139,20 +153,20 @@
       <p>6. For 45° pipes, set <b>Pipe angles</b> to 45° and 90°, then switch the plane with <kbd>Tab</kbd>.</p>
       <p>7. Fill in the title block, then use <b>PDF</b> or <b>Share</b>. Company logo, website, creator and paper size (A4 / A3) are in <b>Settings</b>.</p>
       <p>Click ☆ on any palette item (or long-press it) to add it to Favorites. Valves are grouped – click a group to open it.</p>
-      <p>On a phone: drag with one finger to pan, pinch to zoom.</p>
+      <p>On a phone: drag with one finger to pan, pinch to zoom. Long-press a pipe or component to change its length, size or type. The parts are grouped in the bottom bar: tap a group to open it, long-press a group to move it.</p>
       <p>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Fit <kbd>Home</kbd> · Delete <kbd>Del</kbd></p>`,
   };
 
   const de = {
     'app.title': 'PipeIso – Editor für Rohrleitungsisometrien',
     'btn.new': 'Neu', 'tip.new': 'Neue Zeichnung',
-    'btn.open': 'Öffnen…', 'tip.open': 'Eine .pipeiso.json-Datei öffnen',
+    'btn.open': 'Öffnen…', 'tip.open': 'Eine Zeichnungsdatei (.bpi) öffnen',
     'btn.save': 'Speichern', 'tip.save': 'Zeichnung als Datei speichern (Strg+S)',
     'btn.undo': 'Rückgängig', 'tip.undo': 'Rückgängig (Strg+Z)',
     'btn.redo': 'Wiederholen', 'tip.redo': 'Wiederholen (Strg+Y)',
     'btn.fit': 'Einpassen', 'tip.fit': 'Alles anzeigen (Pos1)',
     'lbl.export': 'Export',
-    'tip.svg': 'A3-Blatt als SVG herunterladen', 'tip.png': 'A3-Blatt als PNG herunterladen (300 dpi)',
+    'tip.dxf': 'Blatt als DXF-Datei für CAD herunterladen (Papierformat in den Einstellungen)',
     'btn.print': 'Drucken / PDF', 'tip.print': 'Blatt drucken (Strg+P)',
     'tip.lang': 'Sprache',
 
@@ -211,7 +225,7 @@
 
     'err.min': 'Min. {n}', 'err.pos': 'Zwischen 1 und 99', 'err.len': 'Die Länge muss größer als 0 sein.',
     'err.loop': 'Dieses Rohr ist Teil eines geschlossenen Rings, daher kann seine Länge nicht allein geändert werden.',
-    'err.open': 'Datei konnte nicht geöffnet werden: {m}', 'err.notPipeIso': 'Diese Datei ist keine PipeIso-Zeichnung.', 'err.png': 'PNG konnte nicht erstellt werden.',
+    'err.open': 'Datei konnte nicht geöffnet werden: {m}', 'err.notPipeIso': 'Diese Datei ist keine PipeIso-Zeichnung.', 'err.render': 'Das Blatt konnte nicht erstellt werden.',
     'confirm.new': 'Neue Zeichnung beginnen? Die aktuelle Zeichnung wird geleert (Rückgängig ist weiterhin möglich).',
 
     'tf.project': 'Projekt', 'tf.client': 'Kunde', 'tf.lineNo': 'Leitungs-Nr.', 'tf.drawingNo': 'Zeichnungs-Nr.',
@@ -244,7 +258,7 @@
     'err.insertLoop': 'Hier nicht möglich: Dieses Rohr ist Teil eines geschlossenen Rings.', 'err.insertComp': 'Bauteile können nur in ein Rohr eingefügt werden.',
     'tag.insert': '+{len} mm',
     'btn.pdf': 'PDF', 'tip.pdf': 'Blatt als PDF-Datei herunterladen (Papierformat in den Einstellungen)',
-    'btn.printOnly': 'Drucken', 'btn.share': 'Teilen', 'tip.share': 'Zeichnung teilen oder senden (PDF, PNG, SVG oder Zeichnungsdatei)',
+    'btn.printOnly': 'Drucken', 'btn.share': 'Teilen', 'tip.share': 'Zeichnung teilen oder senden (PDF, DXF oder Zeichnungsdatei)',
     'btn.settings': 'Einstellungen', 'tip.settings': 'Einstellungen: Firmenlogo, Website, Ersteller, Papierformat, Zeichnungsoptionen',
     'btn.install': 'App installieren', 'tip.install': 'PipeIso zum Startbildschirm oder Desktop hinzufügen',
     'set.title': 'Einstellungen', 'set.company': 'Firma', 'set.logo': 'Firmenlogo (PNG)', 'set.logoUpload': 'PNG hochladen…',
@@ -256,8 +270,8 @@
     'set.installText': 'PipeIso lässt sich zum Startbildschirm hinzufügen und funktioniert dann auch offline. Chrome / Edge: „App installieren“. iPhone / iPad (Safari): Teilen → „Zum Home-Bildschirm“. Android: Menü ⋮ → „Zum Startbildschirm hinzufügen“. Dazu muss die App über eine Webadresse (https) geöffnet werden, z. B. GitHub Pages – nicht als Datei vom Computer.',
     'set.installed': 'PipeIso läuft als installierte App.',
     'err.logoType': 'Bitte eine PNG-Datei wählen.', 'err.logoSave': 'Das Logo konnte nicht gespeichert werden (Bild zu groß).',
-    'sh2.title': 'Teilen', 'sh2.pdf': 'PDF ({paper})', 'sh2.pdfSub': 'Für E-Mail, Chat und Druck', 'sh2.png': 'Bild (PNG)', 'sh2.pngSub': '300 dpi',
-    'sh2.svg': 'Vektorgrafik (SVG)', 'sh2.svgSub': 'Für CAD- und Grafikprogramme', 'sh2.json': 'Zeichnungsdatei (.pipeiso.json)',
+    'sh2.title': 'Teilen', 'sh2.pdf': 'PDF ({paper})', 'sh2.pdfSub': 'Für E-Mail, Chat und Druck',
+    'sh2.dxf': 'CAD-Zeichnung (DXF, {paper})', 'sh2.dxfSub': 'Für AutoCAD, LibreCAD und andere CAD-Programme', 'sh2.json': 'Zeichnungsdatei (.bpi)',
     'sh2.jsonSub': 'Kann in PipeIso wieder geöffnet und bearbeitet werden', 'sh2.noShare': 'Dieser Browser kann Dateien nicht direkt teilen, daher wird die Datei heruntergeladen.',
     'sh2.done': 'Geteilt.', 'sh2.downloaded': 'Heruntergeladen: {name}', 'sh2.working': 'Wird vorbereitet…',
     'sh.creator': 'Ersteller',
@@ -271,6 +285,20 @@
     'set.lenHint': 'Leere Felder verwenden die grau angezeigte typische Länge. Die Längen gelten für neue Bauteile; bereits gezeichnete behalten ihre Länge.',
     'set.lenReset': 'Dieses Bauteil auf typische Längen zurücksetzen', 'set.redStep': 'Kleines Ende neuer Reduzierungen',
     'set.red1': 'Eine Nennweite kleiner', 'set.red2': 'Zwei Nennweiten kleiner',
+    'prj.ph': 'Projektname',
+    'cats.pipes': 'Rohre', 'cats.valves': 'Armaturen', 'cats.flanges': 'Flansche', 'cats.reducers': 'Reduzier.',
+    'cats.flex': 'Kompens.', 'cats.other': 'Dämpfer', 'cats.marks': 'Symbole',
+    'tip.catBtn': 'antippen zum Öffnen, lange drücken zum Verschieben', 'fav.hintShort': 'Ein Teil lange drücken, um es zu den Favoriten hinzuzufügen.',
+    'set.display': 'Anzeige', 'set.gridColor': 'Farbe der Linien des Isometriepapiers', 'set.default': 'Standard',
+    'set.gridColorHint': 'Gilt am Bildschirm und wenn das Papier auf dem Blatt gedruckt wird.',
+    'set.showCompass': 'Kompass anzeigen',
+    'set.tpl': 'Vorlage für das Schriftfeld',
+    'set.tplHint': 'Neue Zeichnungen beginnen mit diesen Werten. Leere Felder behalten den üblichen Standard. Der Projektname wird je Zeichnung eingetragen (neben dem Kompass); das Datum ist immer heute.',
+    'set.tplFromDoc': 'Werte aus aktueller Zeichnung übernehmen', 'set.tplApply': 'Aktuelle Zeichnung aus Vorlage füllen', 'set.tplClear': 'Vorlage leeren',
+    'set.tplApplied': 'Schriftfeld der aktuellen Zeichnung ausgefüllt.',
+    'set.backup': 'Einstellungen sichern', 'set.exportSettings': 'Einstellungen exportieren…', 'set.importSettings': 'Einstellungen importieren…',
+    'set.backupHint': 'Speichert Firmendaten und Logo, Schriftfeld-Vorlage, Standard-Baulängen, Favoriten, Anzeige, Sprache und Zeichnungsoptionen in einer Datei. In einem anderen Browser oder auf einem anderen Gerät wieder importieren.',
+    'set.imported': 'Einstellungen importiert.', 'err.settingsFile': 'Diese Datei ist keine PipeIso-Einstellungsdatei.',
     'help': `<p><b>Schnellstart</b></p>
       <p>1. <b>KF-Rohr</b> oder <b>ISO-K-Rohr</b> wählen und einen Startpunkt anklicken oder antippen. Vorhandene Punkte werden gefangen (grüner Ring).</p>
       <p>2. In die gewünschte Richtung bewegen und klicken bzw. tippen, oder eine Länge (mm) eintippen und <kbd>Enter</kbd> drücken. Jeder Punkt setzt den Strang fort und erzeugt einen Bogen.</p>
@@ -280,7 +308,7 @@
       <p>6. Für 45°-Rohre <b>Rohrwinkel</b> auf 45° und 90° stellen und die Ebene mit <kbd>Tab</kbd> wechseln.</p>
       <p>7. Das Schriftfeld ausfüllen, dann <b>PDF</b> oder <b>Teilen</b> wählen. Firmenlogo, Website, Ersteller und Papierformat (A4 / A3) stehen in den <b>Einstellungen</b>.</p>
       <p>☆ an einem Element anklicken (oder lange drücken), um es zu den Favoriten hinzuzufügen. Armaturen sind gruppiert – eine Gruppe anklicken, um sie zu öffnen.</p>
-      <p>Auf dem Smartphone: mit einem Finger verschieben, mit zwei Fingern zoomen.</p>
+      <p>Auf dem Smartphone: mit einem Finger verschieben, mit zwei Fingern zoomen. Ein Rohr oder Bauteil lange drücken, um Länge, Nennweite oder Typ zu ändern. Die Teile sind in der unteren Leiste gruppiert: eine Gruppe antippen zum Öffnen, lange drücken zum Verschieben.</p>
       <p>Rückgängig <kbd>Strg+Z</kbd> · Wiederholen <kbd>Strg+Y</kbd> · Einpassen <kbd>Pos1</kbd> · Löschen <kbd>Entf</kbd></p>`,
   };
 

@@ -165,7 +165,7 @@
   // Personal / company settings, kept in this browser (not in the drawing file)
   const PROFILE_KEY = 'pipeiso.profile.v1';
   ISO.profile = (() => {
-    let data = { logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [] };
+    let data = { logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, titleTpl: {} };
     try { Object.assign(data, JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')); } catch (e) { /* ignore */ }
     return {
       get: () => data,
@@ -182,28 +182,41 @@
   ISO.TITLE_FIELDS = ['project', 'client', 'lineNo', 'drawingNo', 'spec', 'material', 'insulation', 'testPressure',
     'rev', 'sheet', 'drawnBy', 'checkedBy', 'date'];
 
-  ISO.newDoc = () => ({
-    app: 'PipeIso',
-    version: 1,
-    settings: { gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showCompSizes: true, gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends' },
-    title: {
+  // Title block fields that the template in Settings can fill in for new drawings
+  // (not the project name, which is set per drawing, and not the date, which is always today)
+  ISO.TEMPLATE_FIELDS = ISO.TITLE_FIELDS.filter((k) => k !== 'project' && k !== 'date').concat('notes');
+
+  /** New empty drawing. useTemplate = start the title block from the template in Settings. */
+  ISO.newDoc = (useTemplate = true) => {
+    const prof = ISO.profile ? ISO.profile.get() : {};
+    const title = {
       project: '', client: '', lineNo: '', drawingNo: 'ISO-001', spec: '', material: '',
-      insulation: '', testPressure: '', rev: '0', sheet: '1 of 1', drawnBy: (ISO.profile && ISO.profile.get().creator) || '', checkedBy: '',
+      insulation: '', testPressure: '', rev: '0', sheet: '1 of 1', drawnBy: prof.creator || '', checkedBy: '',
       date: new Date().toISOString().slice(0, 10), notes: '',
-    },
-    nodes: {},
-    pipes: [],
-    fittings: [],
-    labels: [],
-    nextId: 1,
-  });
+    };
+    if (useTemplate) {
+      const tpl = prof.titleTpl || {};
+      ISO.TEMPLATE_FIELDS.forEach((k) => { if (typeof tpl[k] === 'string' && tpl[k].trim()) title[k] = tpl[k]; });
+    }
+    return {
+      app: 'PipeIso',
+      version: 1,
+      settings: { gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showCompSizes: true, gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends' },
+      title,
+      nodes: {},
+      pipes: [],
+      fittings: [],
+      labels: [],
+      nextId: 1,
+    };
+  };
 
   /** Fill in missing fields so older / hand-edited files still load. */
   ISO.migrate = (raw) => {
     if (!raw || typeof raw !== 'object' || !raw.nodes || !Array.isArray(raw.pipes)) {
       throw new Error(ISO.t('err.notPipeIso'));
     }
-    const d = ISO.newDoc();
+    const d = ISO.newDoc(false);
     d.settings = Object.assign(d.settings, raw.settings || {});
     d.title = Object.assign(d.title, raw.title || {});
     d.nodes = raw.nodes;

@@ -6,7 +6,8 @@ No installation, no build step, no internet connection needed: just open `index.
 
 ## Features
 
-- **Isometric drawing** on isometric paper (lines or dots, or a plain background): East, West, North, South, Up and Down
+- **Isometric drawing** on isometric paper (lines or dots, or a plain background): East, West, North, South, Up and Down. The colour of the paper lines can be chosen in Settings
+- **Project name** field next to the compass; it goes into the title block of the exported sheet. The compass can be switched off in Settings
 - **Snapping** to existing points, shown with a green marker and a tag:
   - *Endpoint*: start or finish exactly on an existing pipe end, elbow or tee
   - *On pipe – tee*: start on, or run into, an existing pipe
@@ -38,11 +39,12 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
 - Undo/redo, zoom and pan, and autosave in the browser
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)
-- **Settings** (gear button): company logo (PNG), company website and creator name for the title block; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); all drawing options
-- **Export**: PDF file (A4 or A3), PNG (300 dpi), SVG, or print
-- **Share** button: send the sheet as PDF / PNG / SVG, or the drawing file, through the phone's or computer's share menu (falls back to a download where sharing isn't supported)
+- **Settings** (gear button): company logo (PNG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options
+- **Settings backup**: export all settings to a `pipeiso-settings.json` file and import them in another browser or on another device
+- **Export**: PDF file (A4 or A3), DXF file for CAD (the same sheet, in mm, with layers for pipes, components, dimensions, labels, title block and frame; the company logo is not included), or print
+- **Share** button: send the sheet as PDF or DXF, or the drawing file, through the phone's or computer's share menu (falls back to a download where sharing isn't supported)
 - **Installable web app**: add PipeIso to the home screen or desktop; it then also works offline (see below)
-- Save and open drawings as `.pipeiso.json` files
+- Save and open drawings as `.bpi` files (older `.pipeiso.json` files still open)
 
 ## Getting started
 
@@ -69,7 +71,8 @@ Opened as a file (`index.html` on your computer) the app works the same, but can
 
 ## On a phone or tablet
 
-- The tools sit in a bar at the bottom; swipe it sideways to see all categories.
+- The tools sit in a bar at the bottom. The parts are grouped (Pipes, Valves, Flanges, …): tap a group to open its list. Long-press a group and drag it to change the order.
+- Long-press a pipe or component to open its edit box (length, nominal size, type).
 - Tap to place points and components. Drag with one finger to pan, pinch with two fingers to zoom.
 - Use **Edit** to type exact lengths and angles, and **Finish run** to end a pipe run.
 - **Properties** (top bar) opens the title block, settings and the selected item.
@@ -101,7 +104,8 @@ js/i18n.js        English and German translations
 manifest.webmanifest, sw.js, icons/   Web app (install + offline)
 js/core.js        Geometry, iso projection, document model
 js/render.js      SVG rendering of the drawing and the A3 sheet
-js/export.js      Save/open, SVG/PNG export, print to PDF
+js/dxf.js         DXF export (AutoCAD R12) of the sheet
+js/export.js      Save/open, PDF and DXF export, print, settings backup
 js/editor.js      Tools, mouse/keyboard handling, properties panel
 ```
 

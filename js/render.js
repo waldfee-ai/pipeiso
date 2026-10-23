@@ -167,7 +167,9 @@
    * o = { P, sym, font, lw, thin, col, bg, dimCol, selCol, sel, hover }
    */
   ISO.renderDrawing = (doc, o) => {
-    const out = [];
+    // Parts are collected per layer (used as layer names in the DXF export)
+    const lay = { dims: [], pipes: [], comps: [], marks: [], labels: [], sel: [] };
+    let out = lay.dims;
     const st = { col: o.col, bg: o.bg, thin: o.thin, lw: o.lw };
     const isSel = (type, id) => o.sel && o.sel.type === type && o.sel.id === id;
     const isHover = (type, id) => o.hover && o.hover.type === type && o.hover.id === id;
@@ -202,23 +204,24 @@
       const g = geoms.get(pipe.id);
       const col = isSel('pipe', pipe.id) ? o.selCol : isHover('pipe', pipe.id) ? o.hoverCol : o.col;
       const k = (ISO.STANDARDS[pipe.std] || { lw: 1 }).lw;
-      if (!pipe.comp) { out.push(line(g.A, g.B, col, o.lw * k, ' stroke-linecap="round"')); return; }
+      if (!pipe.comp) { lay.pipes.push(line(g.A, g.B, col, o.lw * k, ' stroke-linecap="round"')); return; }
       const cp = pipe.comp;
       const c = lerp(g.A, g.B, 0.5);
       const half = Math.hypot(g.B[0] - g.A[0], g.B[1] - g.A[1]) / 2;
       const ext = { hose: 1.1, bellows: 0.95, reducer: 0.9, reducerEcc: 0.9 }[cp.type] || 1;
       const sa = Math.max(half / ext, o.sym * 0.9); // stretch over the component's length (but never tiny)
-      out.push(ISO.drawFitting(cp.type, c, g.d, g.p, g.n, o.sym, Object.assign({}, st, { col, sa, lw: o.lw * k }), !!cp.flip, cp.side));
+      lay.comps.push(ISO.drawFitting(cp.type, c, g.d, g.p, g.n, o.sym, Object.assign({}, st, { col, sa, lw: o.lw * k }), !!cp.flip, cp.side));
       if (doc.settings.showCompSizes !== false) {
         // size text on the side away from the dimension line
         const od = pipe.dimFlip ? g.o : [-g.o[0], -g.o[1]];
         const tp = add(c, od, o.sym * 2.3);
-        out.push(`<text x="${r2(tp[0])}" y="${r2(tp[1])}" font-size="${r2(o.font * 0.85)}" fill="${col}" text-anchor="middle" dominant-baseline="central" ` +
+        lay.comps.push(`<text x="${r2(tp[0])}" y="${r2(tp[1])}" font-size="${r2(o.font * 0.85)}" fill="${col}" text-anchor="middle" dominant-baseline="central" ` +
           `stroke="${o.bg}" stroke-width="${r2(o.font * 0.3)}" paint-order="stroke">${esc(ISO.compSizeText(pipe))}</text>`);
       }
     });
 
     // Welds at elbows / tees
+    out = lay.marks;
     if (doc.settings.showWelds) {
       Object.keys(doc.nodes).forEach((id) => {
         const ps = ISO.pipesAt(doc, id);
@@ -264,6 +267,7 @@
     });
 
     // Labels
+    out = lay.labels;
     doc.labels.forEach((lab) => {
       if (!ISO.byId(doc.pipes, lab.pipeId)) return;
       const { anchor, pos } = ISO.labelPos(doc, lab, o.P, o.sym);
@@ -280,9 +284,11 @@
 
     // Selected node marker
     if (o.sel && o.sel.type === 'node' && doc.nodes[o.sel.id]) {
-      out.push(circle(o.P(ISO.nodePt(doc, o.sel.id)), o.sym * 0.55, 'none', o.selCol, o.thin * 2));
+      lay.sel.push(circle(o.P(ISO.nodePt(doc, o.sel.id)), o.sym * 0.55, 'none', o.selCol, o.thin * 2));
     }
-    return out.join('');
+    const grp = (name, arr) => (arr.length ? `<g data-layer="${name}">${arr.join('')}</g>` : '');
+    return grp('DIMENSIONS', lay.dims) + grp('PIPES', lay.pipes) + grp('COMPONENTS', lay.comps.concat(lay.marks)) +
+      grp('LABELS', lay.labels) + lay.sel.join('');
   };
 
   /**
@@ -330,6 +336,19 @@
 
   ISO.PAPER = { bg: '#fbfdff', minor: '#d4e6f3', major: '#a9cbe4', dot: '#5f9cc9' };
 
+  /** Mix two #rrggbb colours: k = 0 gives a, k = 1 gives b. */
+  const mix = (a, b, k) => '#' + [1, 3, 5].map((i) => {
+    const v = Math.round(parseInt(a.substr(i, 2), 16) * (1 - k) + parseInt(b.substr(i, 2), 16) * k);
+    return v.toString(16).padStart(2, '0');
+  }).join('');
+  ISO.isHexColor = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+  /** Colours of the isometric paper: the line colour chosen in Settings, or the default blue. */
+  ISO.paperColors = () => {
+    const c = ISO.profile ? ISO.profile.get().gridColor : '';
+    if (!ISO.isHexColor(c) || c.toLowerCase() === ISO.PAPER.major) return ISO.PAPER;
+    return { bg: ISO.PAPER.bg, major: c, minor: mix(c, '#ffffff', 0.5), dot: mix(c, '#000000', 0.3) };
+  };
+
   /** North arrow + axis hint. */
   ISO.northArrow = (x, y, s, col, font) => {
     const d = ISO.iso([0, 1, 0]); // north in screen
@@ -361,7 +380,7 @@
     const col = '#000', bg = '#fff';
     const out = [];
     out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${bg}"/>`);
-    out.push(`<rect x="${M}" y="${M}" width="${W - 2 * M}" height="${H - 2 * M}" fill="none" stroke="${col}" stroke-width="0.6"/>`);
+    out.push(`<g data-layer="FRAME"><rect x="${M}" y="${M}" width="${W - 2 * M}" height="${H - 2 * M}" fill="none" stroke="${col}" stroke-width="0.6"/></g>`);
 
     // Drawing area (leaves room for the north arrow)
     const area = { x: M + 46, y: M + 22, w: W - 2 * M - 62, h: tbY - M - 36 };
@@ -379,17 +398,19 @@
         while (g * k > 10) g /= 2;
         while (g * k < 5) g *= 2;
         const gp = ISO.isoGridPaths(gx0, gy0, gx1, gy1, k, ox - cx * k, oy - cy * k, g);
+        const pc = ISO.paperColors();
         out.push(`<clipPath id="paperClip"><rect x="${gx0}" y="${gy0}" width="${gx1 - gx0}" height="${gy1 - gy0}"/></clipPath>` +
-          `<g clip-path="url(#paperClip)" fill="none"><path d="${gp.minor}" stroke="${ISO.PAPER.minor}" stroke-width="0.12"/>` +
-          `<path d="${gp.major}" stroke="${ISO.PAPER.major}" stroke-width="0.2"/></g>`);
+          `<g data-layer="GRID" clip-path="url(#paperClip)" fill="none"><path d="${gp.minor}" stroke="${pc.minor}" stroke-width="0.12"/>` +
+          `<path d="${gp.major}" stroke="${pc.major}" stroke-width="0.2"/></g>`);
       }
       out.push(ISO.renderDrawing(doc, { P, sym: PP.sym, font: PP.font, lw: PP.lw, thin: 0.18, col, bg, dimCol: col, selCol: col, hoverCol: col }));
     }
     const na = paper === 'A4' ? 13 : 16;
-    out.push(ISO.northArrow(M + 12, M + 26, na, col, paper === 'A4' ? 3.4 : 4));
-    out.push(`<text x="${M + 5}" y="${M + 34}" font-size="${paper === 'A4' ? 2 : 2.4}" fill="${col}">${esc(ISO.t('sh.nts'))}</text>`);
+    out.push('<g data-layer="ANNOTATION">' + ISO.northArrow(M + 12, M + 26, na, col, paper === 'A4' ? 3.4 : 4));
+    out.push(`<text x="${M + 5}" y="${M + 34}" font-size="${paper === 'A4' ? 2 : 2.4}" fill="${col}">${esc(ISO.t('sh.nts'))}</text></g>`);
 
     // Title block
+    out.push('<g data-layer="TITLEBLOCK">');
     const t = doc.title;
     const capFs = paper === 'A4' ? 1.6 : 1.8, valMax = paper === 'A4' ? 2.8 : 3.1, bigMax = paper === 'A4' ? 3.7 : 4.2;
     const cell = (x, y, w, h, cap, val, big) => {
@@ -449,6 +470,7 @@
     const lh = nfs * 2.4;
     wrap(t.notes, Math.floor((nw - 4) / (nfs * 0.56))).slice(0, Math.floor((tbH - 8) / lh)).forEach((l, i) =>
       out.push(`<text x="${nx + 2}" y="${r2(tbY + 10 + i * lh)}" font-size="${nfs}" fill="${col}">${esc(l)}</text>`));
+    out.push('</g>');
 
     const wAttr = opts.pxWidth ? `width="${opts.pxWidth}" height="${Math.round((opts.pxWidth * H) / W)}"` : `width="${W}mm" height="${H}mm"`;
     return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ${wAttr} viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">${out.join('')}</svg>`;

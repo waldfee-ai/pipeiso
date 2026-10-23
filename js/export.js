@@ -1,4 +1,4 @@
-/* PipeIso – file save/open, export (SVG, PNG, PDF, print) and sharing. */
+/* PipeIso – file save/open, export (PDF, DXF, print), settings backup and sharing. */
 (function () {
   'use strict';
   const ISO = window.ISO;
@@ -41,7 +41,7 @@
         URL.revokeObjectURL(url);
         resolve(cv);
       };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(ISO.t('err.png'))); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(ISO.t('err.render'))); };
       img.src = url;
     });
   }
@@ -82,26 +82,26 @@
     const [w, h] = PAPER_PT[paperOf()];
     return buildPdf(bytes, cv.width, cv.height, w, h, `${doc.title.drawingNo || ''} ${doc.title.project || ''}`.trim());
   }
-  async function pngBlob(doc) { return toBlob(await sheetCanvas(doc, pxFor(300)), 'image/png'); }
   const jsonBlob = (doc) => new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-  const svgBlob = (doc) => new Blob([ISO.renderSheet(doc, { paper: paperOf() })], { type: 'image/svg+xml' });
+  const dxfBlob = (doc) => new Blob([ISO.sheetToDXF(doc, paperOf())], { type: 'application/dxf' });
 
   /** Make the file for one export format. */
   async function makeFile(doc, kind) {
     const n = baseName(doc);
     if (kind === 'pdf') return new File([await pdfBlob(doc)], `${n}_${paperOf()}.pdf`, { type: 'application/pdf' });
-    if (kind === 'png') return new File([await pngBlob(doc)], `${n}_${paperOf()}.png`, { type: 'image/png' });
-    if (kind === 'svg') return new File([svgBlob(doc)], `${n}_${paperOf()}.svg`, { type: 'image/svg+xml' });
-    return new File([jsonBlob(doc)], `${n}.pipeiso.json`, { type: 'application/json' });
+    if (kind === 'dxf') return new File([dxfBlob(doc)], `${n}_${paperOf()}.dxf`, { type: 'application/dxf' });
+    return new File([jsonBlob(doc)], `${n}.bpi`, { type: 'application/json' });
   }
 
   ISO.exporter = {
     paperOf,
-    saveJSON(doc) { download(jsonBlob(doc), baseName(doc) + '.pipeiso.json'); },
+    /** Drawing files use the extension .bpi (JSON inside); older .pipeiso.json files still open. */
+    saveJSON(doc) { download(jsonBlob(doc), baseName(doc) + '.bpi'); },
     openJSON(file) { return file.text().then((txt) => ISO.migrate(JSON.parse(txt))); },
-    exportSVG(doc) { download(svgBlob(doc), `${baseName(doc)}_${paperOf()}.svg`); },
-    async exportPNG(doc) { download(await pngBlob(doc), `${baseName(doc)}_${paperOf()}.png`); },
+    exportDXF(doc) { download(dxfBlob(doc), `${baseName(doc)}_${paperOf()}.dxf`); },
     async exportPDF(doc) { download(await pdfBlob(doc), `${baseName(doc)}_${paperOf()}.pdf`); },
+    /** Download the settings (an object) as pipeiso-settings.json. */
+    saveSettings(data) { download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'pipeiso-settings.json'); },
 
     /** Can this browser hand files to other apps (system share sheet)? */
     canShareFiles() {

@@ -506,10 +506,10 @@
   function renderGrid(w, h) {
     const st = doc.settings;
     const style = st.gridStyle || 'lines';
-    const key = [w, h, view.zoom, view.panX, view.panY, st.gridStep, style].join('|');
+    const pp = ISO.paperColors();
+    const key = [w, h, view.zoom, view.panX, view.panY, st.gridStep, style, pp.major].join('|');
     if (key === gridKey) return;
     gridKey = key;
-    const pp = ISO.PAPER;
     let out = `<rect width="${w}" height="${h}" fill="${style === 'none' ? '#fff' : pp.bg}"/>`;
     if (style !== 'none') {
       const g = ISO.gridStepFor(st.gridStep, view.zoom, style === 'dots' ? 16 : 14);
@@ -622,6 +622,30 @@
     else if (tool === 'pipe' || tool === 'label' || ISO.FITTINGS[tool]) cur = 'crosshair';
     else if (hover) cur = 'pointer';
     svg.style.cursor = cur;
+    syncProject();
+  }
+
+  // ---------- project name (next to the compass) and compass on/off ----------
+  const projInput = $('#projName');
+  /** Show the drawing's project name in the field (unless it is being typed in). */
+  function syncProject() {
+    const v = doc.title.project || '';
+    if (document.activeElement !== projInput && projInput.value !== v) projInput.value = v;
+  }
+  let projPending = true; // one undo step per editing session
+  projInput.addEventListener('focus', () => { projPending = true; });
+  projInput.addEventListener('input', () => {
+    if (projPending) { pushHistory(); projPending = false; updateButtons(); }
+    doc.title.project = projInput.value;
+    const sb = document.getElementById('t-project');
+    if (sb && sb !== document.activeElement) sb.value = projInput.value;
+    autosave();
+  });
+  projInput.addEventListener('change', () => { projPending = true; });
+  projInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { projInput.blur(); svg.focus({ preventScroll: true }); } });
+  function applyDisplay() {
+    wrap.classList.toggle('no-compass', ISO.profile.get().showCompass === false);
+    projInput.placeholder = T('prj.ph');
   }
 
   function updateStatus() {
@@ -708,7 +732,9 @@
     if (i >= 0) list.splice(i, 1); else list.push(id);
     ISO.profile.set({ favs: list });
     buildPalette();
-    if (!flyout.hidden && flyout.dataset.fgroup) openFlyout(flyout.dataset.fgroup, null);
+    const fg = flyout.hidden ? '' : flyout.dataset.fgroup;
+    if (fg && fg.startsWith('cat:')) openCatPanel(fg.slice(4), null);
+    else if (fg) openFlyout(fg, null);
   }
   function toolBtn(id) {
     const d = itemDef(id);
@@ -721,10 +747,59 @@
     return null;
   }
 
+  // On phones the parts are grouped: one button per category (pipes, valves, flanges, …).
+  // Tapping it opens the list of its parts; a long press lets you drag the button to another place.
+  const MOBILE_CATS = ['pipes'].concat(ISO.CATEGORIES.map((c) => c.id));
+  const catLast = {};   // last part picked in each category (shown on its button)
+  let paletteMobile = null; // layout the palette was last built for
+  function catItems(id) {
+    if (id === 'pipes') return ['pipe:KF', 'pipe:K'];
+    const c = ISO.CATEGORIES.find((x) => x.id === id);
+    return !c ? [] : c.groups ? c.groups.flatMap((g) => g.items) : c.items;
+  }
+  const catOfItem = (item) => MOBILE_CATS.find((id) => catItems(id).includes(item)) || null;
+  function catOrder() {
+    const saved = (ISO.profile.get().catOrder || []).filter((id) => MOBILE_CATS.includes(id));
+    return saved.concat(MOBILE_CATS.filter((id) => !saved.includes(id)));
+  }
+  function catBtn(id) {
+    const d = itemDef(catLast[id] || catItems(id)[0]);
+    return `<button class="tool cat-btn" data-mcat="${id}" title="${esc(T('cat.' + id))} – ${esc(T('tip.catBtn'))}">` +
+      `<svg viewBox="0 0 30 30">${d.icon}</svg>${esc(T('cats.' + id))}<span class="chev-u">▴</span></button>`;
+  }
+  /** Phone: open the list of parts of one category above the bottom bar. */
+  function openCatPanel(id, anchor) {
+    const c = ISO.CATEGORIES.find((x) => x.id === id);
+    const inner = c && c.groups
+      ? c.groups.map((g) => `<div class="flyout-sub">${esc(T('grp.' + g.id))}</div><div class="flyout-items">${g.items.map(toolBtn).join('')}</div>`).join('')
+      : `<div class="flyout-items">${catItems(id).map(toolBtn).join('')}</div>`;
+    flyout.className = 'flyout catpanel';
+    flyout.dataset.fgroup = 'cat:' + id;
+    flyout.innerHTML = `<div class="flyout-head">${esc(T('cat.' + id))}</div>${inner}<div class="flyout-hint">${esc(T('fav.hintShort'))}</div>`;
+    flyout.hidden = false;
+    markActiveTool();
+    const btn = anchor || document.querySelector(`[data-mcat="${id}"]`);
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const pal = $('#palette').getBoundingClientRect();
+    const fw = flyout.offsetWidth, fh = flyout.offsetHeight;
+    flyout.style.left = clamp(r.left + r.width / 2 - fw / 2, 6, window.innerWidth - fw - 6) + 'px';
+    flyout.style.top = Math.max(6, pal.top - fh - 6) + 'px';
+  }
+
   function buildPalette() {
     const cat = (id, inner) =>
       `<div class="cat${collapsed.has(id) ? ' collapsed' : ''}" data-cat="${id}"><button class="cat-head" data-cathead="${id}">${esc(T('cat.' + id))}<span class="chev">▾</span></button><div class="cat-items">${inner}</div></div>`;
     const fl = favs();
+    paletteMobile = isMobile();
+    if (paletteMobile) {
+      let m = fl.length ? cat('favs', fl.map(toolBtn).join('')) : '';
+      m += cat('draw', DRAW_TOOLS.map(([id]) => toolBtn(id)).join(''));
+      m += `<div class="cat cat-groups" id="catGroups">${catOrder().map(catBtn).join('')}</div>`;
+      $('#palette').innerHTML = m;
+      markActiveTool();
+      return;
+    }
     let h = cat('favs', fl.length ? fl.map(toolBtn).join('') : `<div class="fav-hint">${esc(T('fav.hint'))}</div>`);
     h += cat('draw', DRAW_TOOLS.map(([id]) => toolBtn(id)).join(''));
     h += cat('pipes', toolBtn('pipe:KF') + toolBtn('pipe:K'));
@@ -746,6 +821,7 @@
   function openFlyout(gid, anchor) {
     const g = ISO.CATEGORIES.flatMap((c) => c.groups || []).find((x) => x.id === gid);
     if (!g) return;
+    flyout.className = 'flyout';
     flyout.dataset.fgroup = gid;
     flyout.innerHTML = `<div class="flyout-head">${esc(T('grp.' + gid))}</div><div class="flyout-items">${g.items.map(toolBtn).join('')}</div>`;
     flyout.hidden = false;
@@ -765,22 +841,73 @@
   }
   function closeFlyout() { flyout.hidden = true; flyout.dataset.fgroup = ''; }
   document.addEventListener('pointerdown', (e) => {
-    if (!flyout.hidden && !flyout.contains(e.target) && !e.target.closest('[data-group]')) closeFlyout();
+    if (!flyout.hidden && !flyout.contains(e.target) && !e.target.closest('[data-group], [data-mcat]')) closeFlyout();
   });
-  $('#palette').addEventListener('scroll', closeFlyout, { passive: true });
+  $('#palette').addEventListener('scroll', () => { if (!moving) closeFlyout(); }, { passive: true });
 
-  // Long-press on any palette item toggles it as a favorite (handy on touch screens)
-  let pressTimer = null, pressFired = false;
+  // Long press: on a part toggles it as a favorite; on a category button (phone) lets you move the button
+  let pressTimer = null, pressFired = false, pressAt = null;
   function onPressStart(e) {
-    const b = e.target.closest('[data-item]');
+    const b = e.target.closest('[data-item], [data-mcat]');
     pressFired = false;
     if (!b) return;
     clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => { pressFired = true; toggleFav(b.dataset.item); if (navigator.vibrate) navigator.vibrate(15); }, 550);
+    pressAt = [e.clientX, e.clientY];
+    pressTimer = setTimeout(() => {
+      pressFired = true;
+      if (b.dataset.mcat) startMove(b); else toggleFav(b.dataset.item);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 550);
   }
   const onPressEnd = () => clearTimeout(pressTimer);
+  function onPressMove(e) { if (pressAt && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 10) clearTimeout(pressTimer); }
+
+  // ---------- moving a category button (phone) ----------
+  let moving = null;
+  function startMove(btn) {
+    closeFlyout();
+    moving = btn;
+    btn.classList.add('moving');
+    $('#palette').classList.add('reordering');
+    window.addEventListener('pointermove', moveTo);
+    window.addEventListener('pointerup', endMove);
+    window.addEventListener('pointercancel', endMove);
+  }
+  function moveTo(e) {
+    if (!moving) return;
+    const bar = $('#catGroups');
+    if (!bar) return;
+    const x = e.clientX;
+    const others = [...bar.querySelectorAll('[data-mcat]')].filter((b) => b !== moving);
+    const before = others.find((b) => { const r = b.getBoundingClientRect(); return x < r.left + r.width / 2; });
+    if (before) { if (moving.nextElementSibling !== before) bar.insertBefore(moving, before); }
+    else if (bar.lastElementChild !== moving) bar.appendChild(moving);
+    // scroll the bar when the finger is near its edge
+    const pal = $('#palette'), pr = pal.getBoundingClientRect();
+    if (x < pr.left + 36) pal.scrollLeft -= 10; else if (x > pr.right - 36) pal.scrollLeft += 10;
+  }
+  function endMove() {
+    window.removeEventListener('pointermove', moveTo);
+    window.removeEventListener('pointerup', endMove);
+    window.removeEventListener('pointercancel', endMove);
+    if (!moving) return;
+    moving.classList.remove('moving');
+    $('#palette').classList.remove('reordering');
+    moving = null;
+    const bar = $('#catGroups');
+    if (bar) ISO.profile.set({ catOrder: [...bar.querySelectorAll('[data-mcat]')].map((b) => b.dataset.mcat) });
+  }
+  // While moving, the finger must not scroll the bar
+  $('#palette').addEventListener('touchmove', (e) => { if (moving) e.preventDefault(); }, { passive: false });
+
   function onPaletteClick(e) {
     if (pressFired) { pressFired = false; e.preventDefault(); return; }
+    const mc = e.target.closest('[data-mcat]');
+    if (mc) {
+      const id = mc.dataset.mcat;
+      if (!flyout.hidden && flyout.dataset.fgroup === 'cat:' + id) closeFlyout(); else openCatPanel(id, mc);
+      return;
+    }
     const star = e.target.closest('[data-fav]');
     if (star) { e.stopPropagation(); toggleFav(star.dataset.fav); return; }
     const head = e.target.closest('[data-cathead]');
@@ -797,15 +924,18 @@
     if (b) {
       const g = groupOf(b.dataset.item);
       if (g) groupLast[g.id] = b.dataset.item;
+      const ci = catOfItem(b.dataset.item);
+      if (ci && flyout.contains(b)) catLast[ci] = b.dataset.item;
       setTool(b.dataset.tool, b.dataset.std);
-      if (g && flyout.contains(b)) { closeFlyout(); buildPalette(); }
+      if (flyout.contains(b)) { closeFlyout(); buildPalette(); }
     }
   }
   [$('#palette'), flyout].forEach((el) => {
     el.addEventListener('click', onPaletteClick);
     el.addEventListener('pointerdown', onPressStart);
+    el.addEventListener('pointermove', onPressMove);
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => el.addEventListener(ev, onPressEnd));
-    el.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-item]')) e.preventDefault(); });
+    el.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-item], [data-mcat]')) e.preventDefault(); });
   });
 
   function markActiveTool() {
@@ -813,6 +943,8 @@
       const on = b.dataset.tool === tool && (tool !== 'pipe' || b.dataset.std === pipeStd);
       b.classList.toggle('active', on);
     });
+    const curItem = tool === 'pipe' ? 'pipe:' + pipeStd : tool;
+    document.querySelectorAll('[data-mcat]').forEach((b) => b.classList.toggle('active', catItems(b.dataset.mcat).includes(curItem)));
     document.querySelectorAll('[data-group]').forEach((b) => {
       const g = ISO.CATEGORIES.flatMap((c) => c.groups || []).find((x) => x.id === b.dataset.group);
       b.classList.toggle('active', !!(g && g.items.includes(tool)));
@@ -1195,6 +1327,8 @@
   }
 
   function primaryAction(s, e) {
+    // A popup opened by a long press closes with the next tap outside it
+    if (popup && tool !== 'edit') { closePopup(); if (tool === 'select') return; }
     const now = performance.now();
     const isDouble = lastDown && lastDown.tool === tool && now - lastDown.t < 450 && dist(s, lastDown.s) < 8 * tm();
     lastDown = isDouble ? null : { t: now, s, tool };
@@ -1266,7 +1400,7 @@
   // ---------- drag helpers ----------
   function dragMove(s) {
     if (!drag.moved) {
-      if (dist(s, drag.s0) < 3) return;
+      if (dist(s, drag.s0) < (lastPtr === 'touch' ? 8 : 3)) return;
       pushHistory();
       drag.moved = true;
     }
@@ -1293,6 +1427,30 @@
   let pinch = null;
   let tap = null;
 
+  // Long press with one finger on a pipe or component opens the edit popup (length, size, type)
+  let longPress = null; // { timer, s }
+  function armLongPress(s) {
+    cancelLongPress();
+    longPress = { s, timer: setTimeout(() => onLongPress(s), 500) };
+  }
+  function cancelLongPress() { if (longPress) { clearTimeout(longPress.timer); longPress = null; } }
+  function onLongPress(s) {
+    longPress = null;
+    if (touches.size !== 1) return;
+    const h = hitTest(s, ['label', 'fitting', 'pipe']);
+    if (!h) return;
+    tap = null;            // the finger lifting must not also place or select something
+    if (drag && drag.moved) return;
+    drag = null;
+    if (navigator.vibrate) navigator.vibrate(20);
+    closeFlyout();
+    if (h.type === 'label') {
+      sel = { type: 'label', id: h.id }; renderSidebar(); render(); openSheet();
+      return;
+    }
+    openPopup(h.type === 'fitting' ? 'fitting' : 'pipe', h.id, s, h.type === 'pipe' ? h.t : null);
+  }
+
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
 
   svg.addEventListener('pointerdown', (e) => {
@@ -1305,6 +1463,7 @@
       try { svg.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       if (touches.size === 2) {
         tap = null;
+        cancelLongPress();
         if (drag) finishDrag();
         const [p1, p2] = [...touches.values()];
         pinch = { d0: Math.max(dist(p1, p2), 1), z0: view.zoom, m0: lerp(p1, p2, 0.5), pan0: [view.panX, view.panY] };
@@ -1313,6 +1472,7 @@
       if (touches.size > 2) return;
       mouse = s;
       hover = null;
+      armLongPress(s);
       if (tool === 'select') {
         const h = hitTest(s, ['label', 'fitting']);
         if (h) {
@@ -1343,6 +1503,7 @@
     if (e.pointerType === 'touch') {
       if (!touches.has(e.pointerId)) return;
       touches.set(e.pointerId, s);
+      if (longPress && dist(s, longPress.s) > 10) cancelLongPress();
       if (pinch && touches.size >= 2) {
         const [p1, p2] = [...touches.values()];
         const z = clamp((pinch.z0 * dist(p1, p2)) / pinch.d0, 0.003, 2);
@@ -1403,6 +1564,7 @@
   function endTouch(e, cancelled) {
     const s = evPos(e);
     touches.delete(e.pointerId);
+    cancelLongPress();
     if (pinch) {
       if (touches.size < 2) pinch = null;
       tap = null;
@@ -1501,7 +1663,10 @@
   });
   window.addEventListener('keyup', (e) => { if (e.key === ' ') { spaceDown = false; render(); } });
   window.addEventListener('blur', () => { spaceDown = false; });
-  window.addEventListener('resize', () => { render(); if (popup) placePopup(); });
+  window.addEventListener('resize', () => {
+    if (isMobile() !== paletteMobile) { closeFlyout(); buildPalette(); gridKey = ''; }
+    render(); if (popup) placePopup();
+  });
 
   // ---------- settings dialog ----------
   const settingsDlg = $('#settingsDlg');
@@ -1526,6 +1691,16 @@
     h += field(T('set.site'), text('pf-site', pr.site, 'placeholder="www.example.com" inputmode="url" autocomplete="url"'));
     h += field(T('set.creator'), text('pf-creator', pr.creator, 'autocomplete="name"'));
     h += `<div class="note-box">${esc(T('set.creatorHint'))} ${esc(T('set.profileNote'))}</div>`;
+    h += `<h4>${esc(T('set.tpl'))}</h4>`;
+    const tpl = pr.titleTpl || {};
+    const tf = ISO.TEMPLATE_FIELDS.filter((k) => k !== 'notes');
+    for (let i = 0; i < tf.length; i += 2) {
+      h += '<div class="row2">' + tf.slice(i, i + 2).map((k) => field(T('tf.' + k), text('tpl-' + k, tpl[k] || '', 'data-tpl="' + k + '"'))).join('') + '</div>';
+    }
+    h += field(T('sb.notes'), `<textarea id="tpl-notes" data-tpl="notes" rows="2">${esc(tpl.notes || '')}</textarea>`);
+    h += `<div class="btn-row"><button id="tplFromDoc">${esc(T('set.tplFromDoc'))}</button><button id="tplApply">${esc(T('set.tplApply'))}</button>` +
+      `<button class="danger" id="tplClear">${esc(T('set.tplClear'))}</button></div><div class="ok-msg" id="tplMsg"></div>`;
+    h += `<div class="note-box">${esc(T('set.tplHint'))}</div>`;
     h += `<h4>${esc(T('set.export'))}</h4>`;
     h += `<label class="field"><span>${esc(T('set.paper'))}</span></label><div class="seg" id="paperSeg">` +
       ['A4', 'A3'].map((k) => `<button data-paper="${k}" class="${k === paper ? 'active' : ''}">DIN ${k}</button>`).join('') + '</div>';
@@ -1535,6 +1710,13 @@
     h += `<p><button id="lenReset">${esc(T('set.lenReset'))}</button></p>`;
     h += field(T('set.redStep'), select('pf-redstep', pr.reducerStep || 1, [[1, T('set.red1')], [2, T('set.red2')]]));
     h += `<div class="note-box">${esc(T('set.lenHint'))}</div>`;
+    h += `<h4>${esc(T('set.display'))}</h4>`;
+    const gc = ISO.paperColors().major;
+    h += `<label class="field"><span>${esc(T('set.gridColor'))}</span></label><div class="color-row">` +
+      GRID_SWATCHES.map((c) => `<button class="swatch${c === gc ? ' active' : ''}" data-gc="${c}" style="background:${c}" title="${c}"></button>`).join('') +
+      `<input type="color" id="pf-gridcolor" value="${gc}"><button id="pf-gridreset">${esc(T('set.default'))}</button></div>`;
+    h += `<div class="note-box" style="margin:-4px 0 10px">${esc(T('set.gridColorHint'))}</div>`;
+    h += check('pf-compass', T('set.showCompass'), pr.showCompass !== false);
     h += `<h4>${esc(T('set.drawing'))}</h4>` + drawingSettingsHtml();
     h += `<h4>${esc(T('set.app'))}</h4>`;
     h += field(T('set.language'), select('pf-lang', ISO.getLang(), ISO.LANGS));
@@ -1544,6 +1726,9 @@
       if (installPrompt) h += `<p><button class="primary" id="pf-install">${esc(T('btn.install'))}</button></p>`;
       h += `<div class="note-box">${esc(T('set.installText'))}</div>`;
     }
+    h += `<h4>${esc(T('set.backup'))}</h4>`;
+    h += `<div class="btn-row"><button id="setExport">${esc(T('set.exportSettings'))}</button><button id="setImport">${esc(T('set.importSettings'))}</button></div>`;
+    h += `<div class="ok-msg" id="setMsg"></div><div class="note-box">${esc(T('set.backupHint'))}</div>`;
     h += `</div><div class="dlg-foot"><button class="primary" data-close>${esc(T('set.close'))}</button></div>`;
     settingsDlg.innerHTML = h;
 
@@ -1579,7 +1764,116 @@
     $('#pf-redstep').addEventListener('change', (e) => ISO.profile.set({ reducerStep: parseInt(e.target.value, 10) }));
     bindLenGrid();
     bindDrawingSettings();
+
+    // Title block template
+    settingsDlg.querySelectorAll('[data-tpl]').forEach((el) => el.addEventListener('input', () => {
+      const t = Object.assign({}, ISO.profile.get().titleTpl || {});
+      t[el.dataset.tpl] = el.value;
+      ISO.profile.set({ titleTpl: t });
+    }));
+    $('#tplFromDoc').addEventListener('click', () => {
+      const t = {};
+      ISO.TEMPLATE_FIELDS.forEach((k) => { t[k] = doc.title[k] || ''; });
+      ISO.profile.set({ titleTpl: t });
+      renderSettings();
+    });
+    $('#tplApply').addEventListener('click', () => {
+      const t = ISO.profile.get().titleTpl || {};
+      commit(() => { ISO.TEMPLATE_FIELDS.forEach((k) => { if (typeof t[k] === 'string' && t[k].trim()) doc.title[k] = t[k]; }); });
+      $('#tplMsg').textContent = T('set.tplApplied');
+    });
+    $('#tplClear').addEventListener('click', () => { ISO.profile.set({ titleTpl: {} }); renderSettings(); });
+
+    // Display: paper line colour and compass
+    const setGridColor = (c) => {
+      ISO.profile.set({ gridColor: c });
+      gridKey = '';
+      render();
+      const cur = ISO.paperColors().major;
+      settingsDlg.querySelectorAll('[data-gc]').forEach((b) => b.classList.toggle('active', b.dataset.gc === cur));
+      $('#pf-gridcolor').value = cur;
+    };
+    settingsDlg.querySelectorAll('[data-gc]').forEach((b) => b.addEventListener('click', () => setGridColor(b.dataset.gc)));
+    $('#pf-gridcolor').addEventListener('input', (e) => setGridColor(e.target.value));
+    $('#pf-gridreset').addEventListener('click', () => setGridColor(''));
+    $('#pf-compass').addEventListener('change', (e) => { ISO.profile.set({ showCompass: e.target.checked }); applyDisplay(); });
+
+    // Settings backup
+    $('#setExport').addEventListener('click', () => ISO.exporter.saveSettings(settingsBackup()));
+    $('#setImport').addEventListener('click', () => settingsInput.click());
   }
+
+  const GRID_SWATCHES = [ISO.PAPER.major, '#c3c9d1', '#a8d5b9', '#f2c9a0', '#e4b3c4'];
+
+  // ---------- settings backup (export / import) ----------
+  const DRAWING_KEYS = Object.keys(ISO.newDoc(false).settings);
+  function settingsBackup() {
+    const drawing = {};
+    DRAWING_KEYS.forEach((k) => { drawing[k] = doc.settings[k]; });
+    return { app: 'PipeIso', kind: 'settings', version: 1, profile: ISO.profile.get(), lang: ISO.getLang(), drawing };
+  }
+  /** Only known, well-formed values are taken over from a settings file. */
+  function cleanProfile(p) {
+    const out = {};
+    const str = (v, max = 500) => (typeof v === 'string' ? v.slice(0, max) : null);
+    if (typeof p.logo === 'string' && (p.logo === '' || /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.logo))) out.logo = p.logo;
+    ['site', 'creator'].forEach((k) => { const v = str(p[k]); if (v !== null) out[k] = v; });
+    if (ISO.PAPERS[p.paper]) out.paper = p.paper;
+    if (p.reducerStep === 1 || p.reducerStep === 2) out.reducerStep = p.reducerStep;
+    if (Array.isArray(p.favs)) out.favs = p.favs.filter((x) => typeof x === 'string' && itemDef(x));
+    if (p.gridColor === '' || ISO.isHexColor(p.gridColor)) out.gridColor = p.gridColor;
+    if (typeof p.showCompass === 'boolean') out.showCompass = p.showCompass;
+    if (Array.isArray(p.catOrder)) out.catOrder = p.catOrder.filter((x) => MOBILE_CATS.includes(x));
+    if (p.titleTpl && typeof p.titleTpl === 'object') {
+      out.titleTpl = {};
+      ISO.TEMPLATE_FIELDS.forEach((k) => { const v = str(p.titleTpl[k], 2000); if (v !== null) out.titleTpl[k] = v; });
+    }
+    if (p.lengths && typeof p.lengths === 'object') {
+      out.lengths = {};
+      Object.keys(p.lengths).forEach((type) => {
+        if (!isInline(type) || !p.lengths[type] || typeof p.lengths[type] !== 'object') return;
+        const t = {};
+        Object.keys(p.lengths[type]).forEach((dn) => { const v = p.lengths[type][dn]; if (/^\d+$/.test(dn) && typeof v === 'number' && v > 0) t[dn] = v; });
+        out.lengths[type] = t;
+      });
+    }
+    return out;
+  }
+  function cleanDrawing(d) {
+    const out = {};
+    const def = ISO.newDoc(false).settings;
+    const enums = { gridStyle: ['lines', 'dots', 'none'], angles: ['90', '45'], autoFlange: ['off', 'ends', 'all'], defaultStd: Object.keys(ISO.STANDARDS) };
+    DRAWING_KEYS.forEach((k) => {
+      const v = d[k];
+      if (typeof v !== typeof def[k]) return;
+      if (enums[k] && !enums[k].includes(v)) return;
+      if (k === 'defaultDnKF' || k === 'defaultDnK') { if (!ISO.STANDARDS[k.slice(9)].dns.includes(v)) return; }
+      if (typeof v === 'number' && !(v > 0)) return;
+      out[k] = v;
+    });
+    return out;
+  }
+  const settingsInput = $('#settingsInput');
+  settingsInput.addEventListener('change', async () => {
+    const f = settingsInput.files[0];
+    settingsInput.value = '';
+    if (!f) return;
+    let data = null;
+    try { data = JSON.parse(await f.text()); } catch (e) { data = null; }
+    if (!data || data.app !== 'PipeIso' || data.kind !== 'settings' || !data.profile || typeof data.profile !== 'object') {
+      alert(T('err.settingsFile'));
+      return;
+    }
+    if (!ISO.profile.set(cleanProfile(data.profile))) { alert(T('err.logoSave')); return; }
+    if (data.drawing && typeof data.drawing === 'object') {
+      const ds = cleanDrawing(data.drawing);
+      if (Object.keys(ds).length) commit(() => { Object.assign(doc.settings, ds); });
+    }
+    if (ISO.LANGS.some(([k]) => k === data.lang) && data.lang !== ISO.getLang()) { langSel.value = data.lang; langSel.dispatchEvent(new Event('change')); }
+    gridKey = '';
+    applyDisplay(); updatePaperTag(); buildPalette(); updatePlanebar(); render(); updateStatus();
+    if (settingsDlg.open) { renderSettings(); $('#setMsg').textContent = T('set.imported'); }
+  });
 
   let lenType = 'gate';
   function lenGridHtml() {
@@ -1623,8 +1917,7 @@
     const item = (kind, title, sub) => `<button data-share="${kind}"><span><b>${esc(title)}</b><br><small>${esc(sub)}</small></span><span>›</span></button>`;
     let h = `<div class="dlg-head"><h2>${esc(T('sh2.title'))}</h2><button data-close>✕</button></div><div class="dlg-body"><div class="share-list" style="margin-top:12px">`;
     h += item('pdf', T('sh2.pdf', { paper: 'DIN ' + paper }), T('sh2.pdfSub'));
-    h += item('png', T('sh2.png'), T('sh2.pngSub'));
-    h += item('svg', T('sh2.svg'), T('sh2.svgSub'));
+    h += item('dxf', T('sh2.dxf', { paper: 'DIN ' + paper }), T('sh2.dxfSub'));
     h += item('json', T('sh2.json'), T('sh2.jsonSub'));
     h += '</div>';
     if (!ISO.exporter.canShareFiles()) h += `<div class="note-box">${esc(T('sh2.noShare'))}</div>`;
@@ -1678,14 +1971,13 @@
     new: () => {
       if (doc.pipes.length && !confirm(T('confirm.new'))) return;
       pushHistory();
-      doc = ISO.newDoc(); sel = null; doc.title.drawnBy = ISO.profile.get().creator || ''; run = null; preview = null; popup = null; popupEl.hidden = true;
+      doc = ISO.newDoc(); sel = null; run = null; preview = null; popup = null; popupEl.hidden = true;
       updatePlanebar(); changed(); fit();
     },
     open: () => fileInput.click(),
     save: () => ISO.exporter.saveJSON(doc),
     undo, redo, fit,
-    exportSvg: () => ISO.exporter.exportSVG(doc),
-    exportPng: () => ISO.exporter.exportPNG(doc).catch((err) => alert(err.message)),
+    exportDxf: () => { try { ISO.exporter.exportDXF(doc); } catch (err) { alert(err.message); } },
     exportPdf: () => ISO.exporter.exportPDF(doc).catch((err) => alert(err.message)),
     share: openShare,
     settings: openSettings,
@@ -1710,12 +2002,13 @@
   langSel.innerHTML = ISO.LANGS.map(([k, l]) => `<option value="${k}"${k === ISO.getLang() ? ' selected' : ''}>${l}</option>`).join('');
   langSel.addEventListener('change', () => {
     ISO.setLang(langSel.value);
-    buildPalette(); buildCompass(); updatePlanebar(); renderSidebar(); renderPopup(); render(); updateStatus();
+    buildPalette(); buildCompass(); applyDisplay(); updatePlanebar(); renderSidebar(); renderPopup(); render(); updateStatus();
     if (settingsDlg.open) renderSettings();
   });
 
   // ---------- init ----------
   ISO.applyStatic();
+  applyDisplay();
   updatePaperTag();
   buildPalette();
   buildCompass();
@@ -1724,7 +2017,7 @@
   renderSidebar();
   updateButtons();
   updateStatus();
-  mobileMQ.addEventListener('change', () => { gridKey = ''; render(); if (popup) placePopup(); });
+  mobileMQ.addEventListener('change', () => { gridKey = ''; closeFlyout(); buildPalette(); render(); if (popup) placePopup(); });
 
   // Exposed for debugging / automated tests
   window.PipeIso = { get doc() { return doc; }, view, setTool, setPlane, fit, undo, redo };
