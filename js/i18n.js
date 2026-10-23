@@ -130,7 +130,8 @@
     'set.lenHint': 'Empty fields use the typical length shown in grey. These lengths are used for new components; components already drawn keep their length.',
     'set.lenReset': 'Reset this component to typical lengths', 'set.redStep': 'Small end of new reducers',
     'set.red1': 'One size smaller', 'set.red2': 'Two sizes smaller',
-    'prj.ph': 'Project name',
+    'prj.ph': 'Project name', 'set.version': 'Version',
+    'tip.scale': 'Scale on screen (at the standard 96 dpi). The mouse wheel, pinch, + and − step through the standard scales.',
     'cats.pipes': 'Pipes', 'cats.valves': 'Valves', 'cats.flanges': 'Flanges', 'cats.reducers': 'Reducers',
     'cats.flex': 'Flex', 'cats.other': 'Silencers', 'cats.marks': 'Marks',
     'tip.catBtn': 'tap to open, long-press to move', 'fav.hintShort': 'Long-press a part to add it to Favorites.',
@@ -154,6 +155,7 @@
       <p>7. Fill in the title block, then use <b>PDF</b> or <b>Share</b>. Company logo, website, creator and paper size (A4 / A3) are in <b>Settings</b>.</p>
       <p>Click ☆ on any palette item (or long-press it) to add it to Favorites. Valves are grouped – click a group to open it.</p>
       <p>On a phone: drag with one finger to pan, pinch to zoom. Long-press a pipe or component to change its length, size or type. The parts are grouped in the bottom bar: tap a group to open it, long-press a group to move it.</p>
+      <p>Zooming uses the standard scales 1:1 … 1:2000 (mouse wheel, pinch, <kbd>+</kbd> / <kbd>−</kbd>, or the scale box at the bottom left).</p>
       <p>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Fit <kbd>Home</kbd> · Delete <kbd>Del</kbd></p>`,
   };
 
@@ -285,7 +287,8 @@
     'set.lenHint': 'Leere Felder verwenden die grau angezeigte typische Länge. Die Längen gelten für neue Bauteile; bereits gezeichnete behalten ihre Länge.',
     'set.lenReset': 'Dieses Bauteil auf typische Längen zurücksetzen', 'set.redStep': 'Kleines Ende neuer Reduzierungen',
     'set.red1': 'Eine Nennweite kleiner', 'set.red2': 'Zwei Nennweiten kleiner',
-    'prj.ph': 'Projektname',
+    'prj.ph': 'Projektname', 'set.version': 'Version',
+    'tip.scale': 'Maßstab am Bildschirm (bei Standard-96-dpi). Mausrad, Zwei-Finger-Zoom, + und − springen von Normmaßstab zu Normmaßstab.',
     'cats.pipes': 'Rohre', 'cats.valves': 'Armaturen', 'cats.flanges': 'Flansche', 'cats.reducers': 'Reduzier.',
     'cats.flex': 'Kompens.', 'cats.other': 'Dämpfer', 'cats.marks': 'Symbole',
     'tip.catBtn': 'antippen zum Öffnen, lange drücken zum Verschieben', 'fav.hintShort': 'Ein Teil lange drücken, um es zu den Favoriten hinzuzufügen.',
@@ -309,6 +312,7 @@
       <p>7. Das Schriftfeld ausfüllen, dann <b>PDF</b> oder <b>Teilen</b> wählen. Firmenlogo, Website, Ersteller und Papierformat (A4 / A3) stehen in den <b>Einstellungen</b>.</p>
       <p>☆ an einem Element anklicken (oder lange drücken), um es zu den Favoriten hinzuzufügen. Armaturen sind gruppiert – eine Gruppe anklicken, um sie zu öffnen.</p>
       <p>Auf dem Smartphone: mit einem Finger verschieben, mit zwei Fingern zoomen. Ein Rohr oder Bauteil lange drücken, um Länge, Nennweite oder Typ zu ändern. Die Teile sind in der unteren Leiste gruppiert: eine Gruppe antippen zum Öffnen, lange drücken zum Verschieben.</p>
+      <p>Gezoomt wird in Normmaßstäben 1:1 … 1:2000 (Mausrad, Zwei-Finger-Zoom, <kbd>+</kbd> / <kbd>−</kbd> oder das Maßstabsfeld unten links).</p>
       <p>Rückgängig <kbd>Strg+Z</kbd> · Wiederholen <kbd>Strg+Y</kbd> · Einpassen <kbd>Pos1</kbd> · Löschen <kbd>Entf</kbd></p>`,
   };
 

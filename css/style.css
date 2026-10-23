@@ -82,6 +82,11 @@ main { flex: 1; display: flex; min-height: 0; }
 .projbox input:focus { outline: none; border-color: var(--accent); background: #fff; }
 .projbox input::placeholder { color: #9aa5b1; font-weight: 400; }
 .no-compass #compass { display: none; }
+/* Zoom scale (standard scales) */
+.scalesel {
+  position: absolute; left: 10px; bottom: 10px; z-index: 5; font: inherit; font-size: 13px; font-weight: 600;
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 7px; background: rgba(255,255,255,.92); color: var(--text); cursor: pointer;
+}
 .no-compass .projbox, .no-compass .planebar { left: 10px; }
 .planebar[hidden] { display: none; }
 .planebar button { border: 1px solid transparent; padding: 3px 9px; font-size: 12.5px; background: transparent; }
@@ -197,6 +202,7 @@ button.has-sel { border-color: var(--accent); color: var(--accent); background: 
   #compass { transform: scale(.72); transform-origin: top left; left: 6px; top: 6px; }
   .planebar { left: 92px; right: 6px; top: 48px; flex-wrap: wrap; }
   .projbox { left: 92px; right: 6px; top: 6px; }
+  .scalesel { left: 8px; bottom: 8px; font-size: 15px; padding: 6px 8px; }
   .projbox input { width: auto; flex: 1; min-width: 0; font-size: 16px; }
   .no-compass .projbox, .no-compass .planebar { left: 6px; }
   .popup { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; max-height: 70%; overflow-y: auto; }

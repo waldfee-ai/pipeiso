@@ -37,7 +37,7 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Labels** with leader lines (line numbers, elevations, notes) that you can drag into place
 - **Automatic dimensions** for every pipe. You can hide them or move them to the other side for each pipe
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
-- Undo/redo, zoom and pan, and autosave in the browser
+- Undo/redo, zoom and pan, and autosave in the browser. Zooming steps through the standard scales 1:1, 1:2, 1:5, 1:10, 1:20, 1:25, 1:50, 1:100, 1:200, 1:250, 1:500, 1:1000 and 1:2000 (on screen, at the standard 96 dpi); the current scale is shown and can be picked at the bottom left of the drawing
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)
 - **Settings** (gear button): company logo (PNG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options
 - **Settings backup**: export all settings to a `pipeiso-settings.json` file and import them in another browser or on another device
@@ -93,7 +93,8 @@ Opened as a file (`index.html` on your computer) the app works the same, but can
 | `Ctrl+S` | Save the drawing file |
 | `Ctrl+P` | Print / PDF |
 | `Home` | Zoom to fit |
-| Mouse wheel / middle-drag / `Space`+drag | Zoom / Pan |
+| Mouse wheel / `+` / `−` | Zoom to the next standard scale |
+| Middle-drag / `Space`+drag | Pan |
 
 ## Project structure
 

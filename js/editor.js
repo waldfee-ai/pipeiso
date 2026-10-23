@@ -70,6 +70,27 @@
   }
   const snapT = (t) => (Math.abs(t - 0.5) < 0.07 ? 0.5 : clamp(t, 0.04, 0.96));
 
+  // ---------- standard scales ----------
+  // Zooming only uses standard drawing scales. view.zoom is screen pixels per mm of the model;
+  // at the standard 96 dpi one CSS pixel is 25.4/96 mm, so the scale 1:n is zoom = (96 / 25.4) / n.
+  const SCALES = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000];
+  const PX_PER_MM = 96 / 25.4;
+  const zoomOf = (n) => PX_PER_MM / n;
+  /** Index of the standard scale closest to a zoom factor. */
+  function scaleIndex(z) {
+    let best = 0;
+    SCALES.forEach((n, i) => { if (Math.abs(Math.log(zoomOf(n) / z)) < Math.abs(Math.log(zoomOf(SCALES[best]) / z))) best = i; });
+    return best;
+  }
+  /** Zoom to standard scale number i, keeping screen point s (default: the centre) in place. */
+  function setScale(i, s) {
+    const z = zoomOf(SCALES[clamp(i, 0, SCALES.length - 1)]);
+    const c = s || [wrap.clientWidth / 2, wrap.clientHeight / 2];
+    view.panX = c[0] - ((c[0] - view.panX) * z) / view.zoom;
+    view.panY = c[1] - ((c[1] - view.panY) * z) / view.zoom;
+    view.zoom = z;
+  }
+
   // ---------- persistence & history ----------
   let saveTimer;
   function autosave() {
@@ -623,7 +644,18 @@
     else if (hover) cur = 'pointer';
     svg.style.cursor = cur;
     syncProject();
+    const sv = String(SCALES[scaleIndex(view.zoom)]);
+    if (scaleSel.value !== sv) scaleSel.value = sv;
   }
+
+  // Scale selector (bottom left of the drawing)
+  const scaleSel = $('#scaleSel');
+  scaleSel.innerHTML = SCALES.map((n) => `<option value="${n}">1:${n}</option>`).join('');
+  scaleSel.addEventListener('change', () => {
+    setScale(SCALES.indexOf(parseInt(scaleSel.value, 10)));
+    render(); updateStatus();
+    svg.focus({ preventScroll: true });
+  });
 
   // ---------- project name (next to the compass) and compass on/off ----------
   const projInput = $('#projName');
@@ -679,10 +711,13 @@
   function fit() {
     const b = ISO.isoBounds(doc);
     const w = wrap.clientWidth, h = wrap.clientHeight;
-    if (!b) { view.zoom = isMobile() ? 0.05 : 0.08; view.panX = w / 2; view.panY = h / 2; render(); return; }
+    if (!b) { view.zoom = zoomOf(isMobile() ? 100 : 50); view.panX = w / 2; view.panY = h / 2; render(); return; }
     const pad = isMobile() ? 50 : 90;
     const bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
-    view.zoom = clamp(Math.min((w - 2 * pad) / bw, (h - 2 * pad) / bh), 0.004, 0.4);
+    // the largest standard scale (closest view, at most 1:10) at which the whole drawing fits
+    const zf = Math.min((w - 2 * pad) / bw, (h - 2 * pad) / bh);
+    const i = SCALES.findIndex((n) => n >= 10 && zoomOf(n) <= zf);
+    view.zoom = zoomOf(SCALES[i < 0 ? SCALES.length - 1 : i]);
     view.panX = w / 2 - ((b.x0 + b.x1) / 2) * view.zoom;
     view.panY = h / 2 - ((b.y0 + b.y1) / 2) * view.zoom;
     render();
@@ -1505,7 +1540,7 @@
       if (longPress && dist(s, longPress.s) > 10) cancelLongPress();
       if (pinch && touches.size >= 2) {
         const [p1, p2] = [...touches.values()];
-        const z = clamp((pinch.z0 * dist(p1, p2)) / pinch.d0, 0.003, 2);
+        const z = zoomOf(SCALES[scaleIndex((pinch.z0 * dist(p1, p2)) / pinch.d0)]); // only standard scales
         const m = lerp(p1, p2, 0.5);
         const wx = (pinch.m0[0] - pinch.pan0[0]) / pinch.z0, wy = (pinch.m0[1] - pinch.pan0[1]) / pinch.z0;
         view.zoom = z; view.panX = m[0] - wx * z; view.panY = m[1] - wy * z;
@@ -1590,14 +1625,17 @@
     render();
   });
 
+  // Mouse wheel: one notch = one standard scale (touchpads add up small steps first)
+  let wheelAcc = 0;
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const s = evPos(e);
-    const k = Math.exp(-e.deltaY * 0.0015);
-    const z = clamp(view.zoom * k, 0.003, 2);
-    view.panX = s[0] - ((s[0] - view.panX) * z) / view.zoom;
-    view.panY = s[1] - ((s[1] - view.panY) * z) / view.zoom;
-    view.zoom = z;
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    if (Math.sign(dy) !== Math.sign(wheelAcc)) wheelAcc = 0;
+    wheelAcc += dy;
+    if (Math.abs(wheelAcc) < 40) return;
+    setScale(scaleIndex(view.zoom) + (wheelAcc > 0 ? 1 : -1), s);
+    wheelAcc = 0;
     if (tool === 'pipe' && mouse) preview = run ? runPreview(mouse) : startCandidate(mouse);
     render();
     updateStatus();
@@ -1620,6 +1658,13 @@
       return;
     }
     if (settingsDlg.open || shareDlg.open) return;
+    if (k === '+' || k === '=' || k === '-') {
+      e.preventDefault();
+      setScale(scaleIndex(view.zoom) + (k === '-' ? 1 : -1), mouse);
+      if (tool === 'pipe' && mouse) preview = run ? runPreview(mouse) : startCandidate(mouse);
+      render(); updateStatus();
+      return;
+    }
     if (k === ' ') { spaceDown = true; e.preventDefault(); render(); return; }
     if (k === 'Tab' && tool === 'pipe' && doc.settings.angles === '45') {
       e.preventDefault();
@@ -1720,6 +1765,7 @@
     h += `<h4>${esc(T('set.drawing'))}</h4>` + drawingSettingsHtml();
     h += `<h4>${esc(T('set.app'))}</h4>`;
     h += field(T('set.language'), select('pf-lang', ISO.getLang(), ISO.LANGS));
+    h += `<div class="note-box">PipeIso · ${esc(T('set.version'))} ${esc(ISO.VERSION)}</div>`;
     if (isStandalone()) h += `<div class="note-box">${esc(T('set.installed'))}</div>`;
     else {
       h += `<label class="field"><span>${esc(T('set.installHow'))}</span></label>`;
@@ -1945,7 +1991,7 @@
 
   // ---------- installable web app ----------
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { /* offline support unavailable */ }); });
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { /* offline support unavailable */ }); });
   }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
