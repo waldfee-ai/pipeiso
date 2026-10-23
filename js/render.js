@@ -382,8 +382,10 @@
     out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${bg}"/>`);
     out.push(`<g data-layer="FRAME"><rect x="${M}" y="${M}" width="${W - 2 * M}" height="${H - 2 * M}" fill="none" stroke="${col}" stroke-width="0.6"/></g>`);
 
-    // Drawing area (leaves room for the north arrow)
-    const area = { x: M + 46, y: M + 22, w: W - 2 * M - 62, h: tbY - M - 36 };
+    // Drawing area (leaves room for the north arrow, which is left out when the compass is switched off in Settings)
+    const showNorth = prof.showCompass !== false;
+    const area = showNorth ? { x: M + 46, y: M + 22, w: W - 2 * M - 62, h: tbY - M - 36 }
+      : { x: M + 16, y: M + 16, w: W - 2 * M - 32, h: tbY - M - 30 };
     const b = ISO.isoBounds(doc);
     if (b) {
       const bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
@@ -406,8 +408,8 @@
       out.push(ISO.renderDrawing(doc, { P, sym: PP.sym, font: PP.font, lw: PP.lw, thin: 0.18, col, bg, dimCol: col, selCol: col, hoverCol: col }));
     }
     const na = paper === 'A4' ? 13 : 16;
-    out.push('<g data-layer="ANNOTATION">' + ISO.northArrow(M + 12, M + 26, na, col, paper === 'A4' ? 3.4 : 4));
-    out.push(`<text x="${M + 5}" y="${M + 34}" font-size="${paper === 'A4' ? 2 : 2.4}" fill="${col}">${esc(ISO.t('sh.nts'))}</text></g>`);
+    out.push('<g data-layer="ANNOTATION">' + (showNorth ? ISO.northArrow(M + 12, M + 26, na, col, paper === 'A4' ? 3.4 : 4) : ''));
+    out.push(`<text x="${M + 5}" y="${showNorth ? M + 34 : M + 6}" font-size="${paper === 'A4' ? 2 : 2.4}" fill="${col}">${esc(ISO.t('sh.nts'))}</text></g>`);
 
     // Title block
     out.push('<g data-layer="TITLEBLOCK">');

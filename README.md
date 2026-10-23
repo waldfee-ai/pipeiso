@@ -7,13 +7,13 @@ No installation, no build step, no internet connection needed: just open `index.
 ## Features
 
 - **Isometric drawing** on isometric paper (lines or dots, or a plain background): East, West, North, South, Up and Down. The colour of the paper lines can be chosen in Settings
-- **Project name** field next to the compass; it goes into the title block of the exported sheet. The compass can be switched off in Settings
+- **Project name** field next to the compass; it goes into the title block of the exported sheet. The compass can be switched off in Settings; then the north arrow is also left out of the PDF, DXF and print
 - **Snapping** to existing points, shown with a green marker and a tag:
   - *Endpoint*: start or finish exactly on an existing pipe end, elbow or tee
   - *On pipe – tee*: start on, or run into, an existing pipe
   - *Aligned*: line the end up with another point
   - *Auto route*: finish on a point that isn't in line, and the connecting pipes and elbows are added for you
-- Isometric paper can also be printed on the exported sheet
+- Grid lines (isometric paper) can be switched on or off for the export (PDF, DXF and print) in Settings → Export
 - **Pipe tool** that snaps to the six iso directions. You can click to place a pipe, or type an exact length in mm and press Enter
 - Elbows are created automatically at each change of direction. Starting on an existing pipe creates a **tee**
 - **Pipe angles**: 90° only, or 45° and 90°. 45° pipes are drawn in one plane at a time: horizontal, vertical East–West or vertical North–South. Switch the plane with `Tab` or the buttons above the drawing

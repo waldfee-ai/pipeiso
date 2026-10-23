@@ -1052,7 +1052,6 @@
     h += '<div class="row2">' + field(T('sb.grid'), num('s-grid', st.gridStep, 'min="10" step="10"')) +
       field(T('sb.snap'), num('s-snap', st.snap, 'min="1" step="1"')) + '</div><div class="msg" id="s-grid-msg"></div><div class="msg" id="s-snap-msg"></div>';
     h += field(T('sb.background'), select('s-gridstyle', st.gridStyle || 'lines', [['lines', T('bg.lines')], ['dots', T('bg.dots')], ['none', T('bg.none')]]));
-    h += check('s-paper', T('sb.paperOnSheet'), !!st.paperOnSheet);
     h += check('s-dims', T('sb.showDims'), st.showDims);
     h += check('s-csizes', T('sb.showCompSizes'), st.showCompSizes !== false);
     h += check('s-gsnap', T('sb.gridSnap'), st.gridSnap !== false);
@@ -1704,6 +1703,7 @@
     h += `<h4>${esc(T('set.export'))}</h4>`;
     h += `<label class="field"><span>${esc(T('set.paper'))}</span></label><div class="seg" id="paperSeg">` +
       ['A4', 'A3'].map((k) => `<button data-paper="${k}" class="${k === paper ? 'active' : ''}">DIN ${k}</button>`).join('') + '</div>';
+    h += `<div style="margin-top:12px">${check('s-paper', T('sb.paperOnSheet'), !!doc.settings.paperOnSheet)}</div>`;
     h += `<h4>${esc(T('set.lengths'))}</h4>`;
     h += field(T('set.lenType'), select('len-type', lenType, inlineTypes()));
     h += `<div class="len-grid" id="lenGrid">${lenGridHtml()}</div>`;
