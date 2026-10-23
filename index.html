@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b63ce">
+  <meta name="description" content="Draw piping isometrics (ISO-KF / ISO-K) and export them as A4 or A3 sheets.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PipeIso">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>PipeIso – Piping Isometric Editor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Pipe<span>Iso</span></div>
+    <div class="group">
+      <button data-cmd="new" data-i18n="btn.new" data-i18n-title="tip.new">New</button>
+      <button data-cmd="open" data-i18n="btn.open" data-i18n-title="tip.open">Open…</button>
+      <button data-cmd="save" data-i18n="btn.save" data-i18n-title="tip.save">Save</button>
+    </div>
+    <div class="group">
+      <button data-cmd="undo" data-i18n="btn.undo" data-i18n-title="tip.undo">Undo</button>
+      <button data-cmd="redo" data-i18n="btn.redo" data-i18n-title="tip.redo">Redo</button>
+      <button data-cmd="fit" data-i18n="btn.fit" data-i18n-title="tip.fit">Fit</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="group">
+      <span class="group-label" data-i18n="lbl.export">Export</span>
+      <button data-cmd="exportPdf" class="primary" data-i18n-title="tip.pdf"><span data-i18n="btn.pdf">PDF</span> <span class="paper-tag" id="paperTag">A3</span></button>
+      <button data-cmd="exportPng" data-i18n-title="tip.png">PNG</button>
+      <button data-cmd="exportSvg" data-i18n-title="tip.svg">SVG</button>
+      <button data-cmd="print" data-i18n="btn.printOnly" data-i18n-title="tip.print">Print</button>
+    </div>
+    <div class="group">
+      <button data-cmd="share" class="icon-btn" data-i18n-title="tip.share"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="btn.share">Share</span></button>
+      <button data-cmd="settings" class="icon-btn" data-i18n-title="tip.settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="btn.settings">Settings</span></button>
+      <button data-cmd="install" id="installBtn" class="icon-btn" data-i18n-title="tip.install" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="btn.install">Install app</span></button>
+      <button data-cmd="props" class="mobile-only" data-i18n="btn.props">Properties</button>
+      <select id="langSel" class="lang" data-i18n-title="tip.lang" aria-label="Language"></select>
+    </div>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </header>
+
+  <main>
+    <nav class="palette" id="palette" aria-label="Tools"></nav>
+    <section class="canvas-wrap" id="canvasWrap">
+      <svg id="canvas" tabindex="0" aria-label="Drawing canvas"></svg>
+      <svg id="compass" width="110" height="96" viewBox="0 0 110 96" aria-hidden="true"></svg>
+      <div class="planebar" id="planebar" data-i18n-title="tip.plane" hidden></div>
+      <div class="typed" id="typed" hidden></div>
+      <div class="popup" id="popup" hidden></div>
+      <button class="finish primary" id="finishBtn" data-i18n="btn.finish" hidden>Finish run</button>
+    </section>
+    <aside class="sidebar" id="sidebarWrap">
+      <button class="sheet-close mobile-only" id="sheetClose" data-i18n-title="btn.closeSheet" aria-label="Close">✕</button>
+      <div id="sidebar"></div>
+    </aside>
+  </main>
+
+  <dialog id="settingsDlg" class="dlg"></dialog>
+  <dialog id="shareDlg" class="dlg dlg-small"></dialog>
+
+  <footer class="statusbar">
+    <span id="status"></span>
+    <span id="coords"></span>
+  </footer>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>

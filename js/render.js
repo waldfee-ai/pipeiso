@@ -1,0 +1,456 @@
+/* PipeIso – SVG rendering of the drawing (editor view and printable sheet). */
+(function () {
+  'use strict';
+  const ISO = window.ISO;
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const norm = (v) => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const pts = (arr) => arr.map((p) => r2(p[0]) + ',' + r2(p[1])).join(' ');
+  const line = (a, b, col, w, extra = '') =>
+    `<line x1="${r2(a[0])}" y1="${r2(a[1])}" x2="${r2(b[0])}" y2="${r2(b[1])}" stroke="${col}" stroke-width="${r2(w)}"${extra}/>`;
+  const circle = (c, r, fill, stroke, w) =>
+    `<circle cx="${r2(c[0])}" cy="${r2(c[1])}" r="${r2(r)}" fill="${fill}"${stroke ? ` stroke="${stroke}" stroke-width="${r2(w)}"` : ''}/>`;
+  const poly = (arr, fill, stroke, w) =>
+    `<polygon points="${pts(arr)}" fill="${fill}"${stroke ? ` stroke="${stroke}" stroke-width="${r2(w)}" stroke-linejoin="round"` : ''}/>`;
+
+  ISO.svgUtil = { esc, r2, add, sub, norm, lerp };
+
+  /** Screen direction of a 3D axis under projection P. */
+  const screenDir = (P, v) => norm(sub(P(v), P([0, 0, 0])));
+
+  /** Geometry of a pipe on screen. */
+  ISO.pipeGeom = (doc, pipe, P) => {
+    const [a, b] = ISO.pipeEnds(doc, pipe);
+    const A = P(a), B = P(b);
+    const d = norm(sub(B, A));
+    const ax = ISO.axisOf(a, b);
+    const n = [-d[1], d[0]];
+    let p = n;
+    if (ax) p = screenDir(P, ISO.symPerp(ax.v));
+    else {
+      // 45° pipe: use the 3D axis perpendicular to it that looks most perpendicular on screen
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) || 1;
+      const dv = [(b[0] - a[0]) / L, (b[1] - a[1]) / L, (b[2] - a[2]) / L];
+      let best = 0.8;
+      [[0, 0, 1], [1, 0, 0], [0, 1, 0]].forEach((v) => {
+        if (Math.abs(v[0] * dv[0] + v[1] * dv[1] + v[2] * dv[2]) > 1e-6) return;
+        const sd = screenDir(P, v);
+        const dot = Math.abs(sd[0] * d[0] + sd[1] * d[1]);
+        if (dot < best) { best = dot; p = sd; }
+      });
+    }
+    const o = ax ? screenDir(P, ISO.dimPerp(ax.v)) : n;
+    return { A, B, d, p, o, n, axis: ax };
+  };
+
+  /**
+   * Draw a component symbol centred on c.
+   * d = unit direction along the pipe, p = unit "width" direction, n = screen normal, s = symbol size.
+   * flip reverses the direction along the pipe; side (+1/-1) picks which side of the pipe
+   * stems, levers, flat sides, clamps and tie rods are drawn on.
+   */
+  ISO.drawFitting = (type, c, d, p, n, s, st, flip, side) => {
+    const col = st.col, bg = st.bg, w = st.thin * 1.5;
+    const sd = side === -1 ? -1 : 1, fd = flip ? -1 : 1;
+    const dd = [d[0] * fd, d[1] * fd];
+    const sa = st.sa || s;                                    // half-length along the pipe (components stretch to their length)
+    const at = (u, v) => add(add(c, d, u * sa), p, v * s);  // u along pipe, v across
+    const atW = (u, v) => add(add(c, d, u * s), p, v * s);  // fixed-size details (handwheel, lever)
+    const atS = (u, v) => at(u, v * sd);                      // v > 0 = chosen side
+    const atD = (u, v) => at(u * fd, v);                      // u > 0 = chosen direction
+    const atSD = (u, v) => at(u * fd, v * sd);
+    const L = (a, b, k = 1) => line(a, b, col, w * k);
+    const bowtie = (fillUp = bg, fillDown = bg) =>
+      poly([c, atD(-1, 0.62), atD(-1, -0.62)], fillUp, col, w) + poly([c, atD(1, 0.62), atD(1, -0.62)], fillDown, col, w);
+    const handwheel = () => L(c, atS(0, 1.3)) + L(atW(-0.55, 1.3 * sd), atW(0.55, 1.3 * sd), 1.5);
+    const lever = () => L(c, atS(0, 1.1)) + L(atS(0, 1.1), atW(1.1 * fd, 1.1 * sd), 1.4);
+    switch (type) {
+      case 'gate': return handwheel() + bowtie();
+      case 'globe': return handwheel() + bowtie() + circle(c, 0.27 * s, col);
+      case 'ball': return lever() + bowtie() + circle(c, 0.34 * s, bg, col, w);
+      case 'check': return bowtie(bg, col) + circle(atSD(-1, 0.62), 0.2 * s, col);
+      case 'needle':
+        return L(c, atS(0, 1.35)) + L(atW(-0.4, 1.35 * sd), atW(0.4, 1.35 * sd), 1.5) + bowtie() +
+          poly([c, atW(-0.22, 0.6 * sd), atW(0.22, 0.6 * sd)], col);
+      case 'relief': {
+        let z = '';
+        for (let i = 0; i <= 6; i++) { const q = atW(i % 2 ? 0.28 : -0.28, (0.45 + i * 0.16) * sd); z += (i ? 'L' : 'M') + r2(q[0]) + ' ' + r2(q[1]); }
+        return L(c, atS(0, 0.45)) + `<path d="${z}" fill="none" stroke="${col}" stroke-width="${r2(w)}"/>` +
+          L(atW(-0.4, 1.5 * sd), atW(0.4, 1.5 * sd), 1.5) + bowtie(bg, col);
+      }
+      case 'silencer': {
+        const inner = [-0.5, 0, 0.5].map((u) => L(at(u, 0.42), at(u, -0.42), 0.8)).join('');
+        return poly([at(-0.95, 0.7), at(0.95, 0.7), at(0.95, -0.7), at(-0.95, -0.7)], bg, col, w) + inner +
+          L(atD(0.95, 0.35), add(atD(0.95, 0.35), add([dd[0] * 0.3 * s, dd[1] * 0.3 * s], p, 0.25 * s))) +
+          L(atD(0.95, -0.35), add(atD(0.95, -0.35), add([dd[0] * 0.3 * s, dd[1] * 0.3 * s], p, -0.25 * s)));
+      }
+      case 'butterfly':
+        return lever() + L(at(-0.35, 0.8), at(-0.35, -0.8), 1.3) + L(at(0.35, 0.8), at(0.35, -0.8), 1.3) +
+          L(atS(-0.35, -0.8), atS(0.35, 0.8));
+      case 'flange':
+        return L(at(-0.2, 0.75), at(-0.2, -0.75), 1.4) + L(at(0.2, 0.75), at(0.2, -0.75), 1.4) +
+          `<polyline points="${pts([atS(-0.34, 0.75), atS(-0.34, 1.02), atS(0.34, 1.02), atS(0.34, 0.75)])}" fill="none" stroke="${col}" stroke-width="${r2(w)}"/>`;
+      case 'flange1':
+        return poly([atD(0, 0.42), atD(-0.5, 0.22), atD(-0.5, -0.22), atD(0, -0.42)], bg, col, w) + L(atD(0, 0.8), atD(0, -0.8), 1.8);
+      case 'blind':
+        return L(atD(-0.12, 0.75), atD(-0.12, -0.75), 1.4) + poly([atD(0, 0.85), atD(0.28, 0.85), atD(0.28, -0.85), atD(0, -0.85)], col, col, w);
+      case 'reducer':
+        return poly([atD(-0.9, 0.6), atD(0.9, 0.32), atD(0.9, -0.32), atD(-0.9, -0.6)], bg, col, w);
+      case 'reducerEcc':
+        return poly([atSD(-0.9, 0.6), atSD(0.9, 0.6), atSD(0.9, 0.04), atSD(-0.9, -0.6)], bg, col, w);
+      case 'bellows': {
+        let top = '', bot = '';
+        for (let i = 0; i <= 6; i++) {
+          const u = -0.72 + i * 0.24, v = i % 2 ? 0.38 : 0.72;
+          const a = at(u, v), b = at(u, -v);
+          top += (i ? 'L' : 'M') + r2(a[0]) + ' ' + r2(a[1]);
+          bot += (i ? 'L' : 'M') + r2(b[0]) + ' ' + r2(b[1]);
+        }
+        return poly([at(-0.72, 0.72), at(0.72, 0.72), at(0.72, -0.72), at(-0.72, -0.72)], bg) +
+          `<path d="${top}${bot}" fill="none" stroke="${col}" stroke-width="${r2(w)}" stroke-linejoin="round"/>` +
+          L(atD(-0.95, 0.85), atD(-0.95, -0.85), 1.4) + L(atD(0.95, 0.85), atD(0.95, -0.85), 2.8) +
+          `<polyline points="${pts([atS(-0.95, 0.85), atS(-0.95, 1.08), atS(0.95, 1.08), atS(0.95, 0.85)])}" fill="none" stroke="${col}" stroke-width="${r2(w)}" stroke-dasharray="${r2(s * 0.22)} ${r2(s * 0.12)}"/>`;
+      }
+      case 'hose': {
+        let d2 = '';
+        for (let i = 0; i <= 24; i++) {
+          const u = -1.1 + (2.2 * i) / 24;
+          const q = atS(u, 0.1 + 0.3 * Math.sin((u + 1.1) * Math.PI * 1.37));
+          d2 += (i ? 'L' : 'M') + r2(q[0]) + ' ' + r2(q[1]);
+        }
+        const lw = st.lw || w * 2;
+        return line(at(-1.1, 0), at(1.1, 0), bg, lw * 1.8) +
+          `<path d="${d2}" fill="none" stroke="${col}" stroke-width="${r2(lw * 0.8)}" stroke-linecap="round"/>` +
+          L(atD(-1.1, 0.42), atD(-1.1, -0.42), 1.3) + L(atD(1.1, 0.62), atD(1.1, -0.62), 2.2);
+      }
+      case 'weld': return circle(c, 0.3 * s, col);
+      case 'fieldweld': {
+        const r = 0.42 * s, k = r * 0.7;
+        return circle(c, r, bg, col, w) + L([c[0] - k, c[1] - k], [c[0] + k, c[1] + k]) + L([c[0] - k, c[1] + k], [c[0] + k, c[1] - k]);
+      }
+      case 'flow':
+        return poly([add(c, dd, s * 0.95), add(add(c, dd, -s * 0.55), n, 0.5 * s), add(add(c, dd, -s * 0.55), n, -0.5 * s)], col);
+      default: return '';
+    }
+  };
+
+  /** Reading angle (deg) for text running along d, kept upright. */
+  const textAngle = (d) => {
+    let a = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
+    if (a > 90.5) a -= 180;
+    if (a <= -90.5) a += 180;
+    return a;
+  };
+
+  ISO.labelPos = (doc, lab, P, sym) => {
+    const pipe = ISO.byId(doc.pipes, lab.pipeId);
+    const g = ISO.pipeGeom(doc, pipe, P);
+    const anchor = lerp(g.A, g.B, lab.t);
+    return { anchor, pos: [anchor[0] + lab.ox * sym, anchor[1] + lab.oy * sym] };
+  };
+
+  /** Approximate label text box (for hit testing). */
+  ISO.labelBox = (lab, pos, font) => {
+    const lines = String(lab.text || ' ').split('\n');
+    const w = Math.max(...lines.map((l) => l.length)) * font * 0.58 + font * 0.4;
+    const h = lines.length * font * 1.2;
+    const x = lab.ox >= 0 ? pos[0] : pos[0] - w;
+    return { x, y: pos[1] - font * 0.8, w, h };
+  };
+
+  /**
+   * Render the drawing to SVG markup.
+   * o = { P, sym, font, lw, thin, col, bg, dimCol, selCol, sel, hover }
+   */
+  ISO.renderDrawing = (doc, o) => {
+    const out = [];
+    const st = { col: o.col, bg: o.bg, thin: o.thin, lw: o.lw };
+    const isSel = (type, id) => o.sel && o.sel.type === type && o.sel.id === id;
+    const isHover = (type, id) => o.hover && o.hover.type === type && o.hover.id === id;
+    const geoms = new Map(doc.pipes.map((p) => [p.id, ISO.pipeGeom(doc, p, o.P)]));
+
+    // Dimensions
+    if (doc.settings.showDims) {
+      const dc = o.dimCol || o.col;
+      doc.pipes.forEach((pipe) => {
+        if (pipe.hideDim) return;
+        const g = geoms.get(pipe.id);
+        const L = ISO.pipeLen(doc, pipe);
+        if (L < 1) return;
+        const off = pipe.dimFlip ? [-g.o[0], -g.o[1]] : g.o;
+        const gap = o.sym * 2.6;
+        const A2 = add(g.A, off, gap), B2 = add(g.B, off, gap);
+        const tw = o.thin;
+        out.push(line(add(g.A, off, o.sym * 0.9), add(g.A, off, gap + o.sym * 0.6), dc, tw));
+        out.push(line(add(g.B, off, o.sym * 0.9), add(g.B, off, gap + o.sym * 0.6), dc, tw));
+        out.push(line(A2, B2, dc, tw));
+        const tk = norm(add(g.d, off));
+        [A2, B2].forEach((q) => out.push(line(add(q, tk, -o.sym * 0.45), add(q, tk, o.sym * 0.45), dc, tw * 1.6)));
+        const mid = add(lerp(A2, B2, 0.5), off, o.font * 0.85);
+        const ang = r2(textAngle(g.d));
+        out.push(`<text x="${r2(mid[0])}" y="${r2(mid[1])}" transform="rotate(${ang} ${r2(mid[0])} ${r2(mid[1])})" ` +
+          `font-size="${r2(o.font)}" fill="${dc}" text-anchor="middle" dominant-baseline="central">${Math.round(L)}</text>`);
+      });
+    }
+
+    // Pipes and components in the line
+    doc.pipes.forEach((pipe) => {
+      const g = geoms.get(pipe.id);
+      const col = isSel('pipe', pipe.id) ? o.selCol : isHover('pipe', pipe.id) ? o.hoverCol : o.col;
+      const k = (ISO.STANDARDS[pipe.std] || { lw: 1 }).lw;
+      if (!pipe.comp) { out.push(line(g.A, g.B, col, o.lw * k, ' stroke-linecap="round"')); return; }
+      const cp = pipe.comp;
+      const c = lerp(g.A, g.B, 0.5);
+      const half = Math.hypot(g.B[0] - g.A[0], g.B[1] - g.A[1]) / 2;
+      const ext = { hose: 1.1, bellows: 0.95, reducer: 0.9, reducerEcc: 0.9 }[cp.type] || 1;
+      const sa = Math.max(half / ext, o.sym * 0.9); // stretch over the component's length (but never tiny)
+      out.push(ISO.drawFitting(cp.type, c, g.d, g.p, g.n, o.sym, Object.assign({}, st, { col, sa, lw: o.lw * k }), !!cp.flip, cp.side));
+      if (doc.settings.showCompSizes !== false) {
+        // size text on the side away from the dimension line
+        const od = pipe.dimFlip ? g.o : [-g.o[0], -g.o[1]];
+        const tp = add(c, od, o.sym * 2.3);
+        out.push(`<text x="${r2(tp[0])}" y="${r2(tp[1])}" font-size="${r2(o.font * 0.85)}" fill="${col}" text-anchor="middle" dominant-baseline="central" ` +
+          `stroke="${o.bg}" stroke-width="${r2(o.font * 0.3)}" paint-order="stroke">${esc(ISO.compSizeText(pipe))}</text>`);
+      }
+    });
+
+    // Welds at elbows / tees
+    if (doc.settings.showWelds) {
+      Object.keys(doc.nodes).forEach((id) => {
+        const ps = ISO.pipesAt(doc, id);
+        if (ps.length < 2 || ps.some((x) => x.comp)) return;
+        const c = o.P(ISO.nodePt(doc, id));
+        ps.forEach((pipe) => {
+          const g = geoms.get(pipe.id);
+          const dir = pipe.a === id ? g.d : [-g.d[0], -g.d[1]];
+          out.push(circle(add(c, dir, o.sym * 1.1), o.sym * 0.3, o.col));
+        });
+      });
+    }
+
+    // Automatic flanges at section ends
+    const af = doc.settings.autoFlange;
+    if (af === 'ends' || af === 'all') {
+      const deg = {};
+      doc.pipes.forEach((p) => { deg[p.a] = (deg[p.a] || 0) + 1; deg[p.b] = (deg[p.b] || 0) + 1; });
+      doc.pipes.forEach((pipe) => {
+        if (pipe.comp) return; // components bring their own flanges
+        const g = geoms.get(pipe.id);
+        const screenLen = Math.hypot(g.B[0] - g.A[0], g.B[1] - g.A[1]);
+        [[pipe.a, g.A, g.d], [pipe.b, g.B, [-g.d[0], -g.d[1]]]].forEach(([nid, E, dir]) => {
+          // one flange per pipe end: at open ends right at the end, at joints just before the elbow / tee
+          let off = null;
+          if (deg[nid] === 1) off = 0.12;
+          else if (af === 'all' && screenLen > o.sym * 3) off = 0.9;
+          if (off === null) return;
+          const q = add(E, dir, o.sym * off);
+          out.push(line(add(q, g.p, o.sym * 0.78), add(q, g.p, -o.sym * 0.78), o.col, o.thin * 2.2));
+        });
+      });
+    }
+
+    // Fittings
+    doc.fittings.forEach((f) => {
+      const pipe = ISO.byId(doc.pipes, f.pipeId);
+      if (!pipe) return;
+      const g = geoms.get(pipe.id);
+      const c = lerp(g.A, g.B, f.t);
+      const col = isSel('fitting', f.id) ? o.selCol : isHover('fitting', f.id) ? o.hoverCol : o.col;
+      out.push(ISO.drawFitting(f.type, c, g.d, g.p, g.n, o.sym, Object.assign({}, st, { col }), !!f.flip, f.side));
+    });
+
+    // Labels
+    doc.labels.forEach((lab) => {
+      if (!ISO.byId(doc.pipes, lab.pipeId)) return;
+      const { anchor, pos } = ISO.labelPos(doc, lab, o.P, o.sym);
+      const col = isSel('label', lab.id) ? o.selCol : isHover('label', lab.id) ? o.hoverCol : o.col;
+      out.push(line(anchor, pos, col, o.thin));
+      out.push(circle(anchor, o.sym * 0.22, col));
+      const lines = String(lab.text || '').split('\n');
+      const anchorTxt = lab.ox >= 0 ? 'start' : 'end';
+      const tx = pos[0] + (lab.ox >= 0 ? 1 : -1) * o.font * 0.25;
+      const tsp = lines.map((l, i) => `<tspan x="${r2(tx)}" dy="${i ? r2(o.font * 1.2) : 0}">${esc(l) || ' '}</tspan>`).join('');
+      out.push(`<text x="${r2(tx)}" y="${r2(pos[1])}" font-size="${r2(o.font)}" fill="${col}" text-anchor="${anchorTxt}" ` +
+        `dominant-baseline="central" stroke="${o.bg}" stroke-width="${r2(o.font * 0.3)}" paint-order="stroke">${tsp}</text>`);
+    });
+
+    // Selected node marker
+    if (o.sel && o.sel.type === 'node' && doc.nodes[o.sel.id]) {
+      out.push(circle(o.P(ISO.nodePt(doc, o.sel.id)), o.sym * 0.55, 'none', o.selCol, o.thin * 2));
+    }
+    return out.join('');
+  };
+
+  /**
+   * Isometric paper: triangular grid in the three iso directions.
+   * Screen rect (x0,y0)-(x1,y1); world->screen is s = w*z + (px,py); g = grid step (mm).
+   * Returns SVG path data for minor lines, major lines (every `major` cells) and dots (lattice points).
+   */
+  ISO.isoGridPaths = (x0, y0, x1, y1, z, px, py, g, major = 5, withDots = false) => {
+    const C = ISO.C;
+    const toW = (sx, sy) => [(sx - px) / z, (sy - py) / z];
+    const toS = (wx, wy) => r2(wx * z + px) + ' ' + r2(wy * z + py);
+    const cs = [toW(x0, y0), toW(x1, y0), toW(x0, y1), toW(x1, y1)];
+    const xL = cs[0][0], xR = cs[1][0], yT = cs[0][1], yB = cs[2][1];
+    let minor = '', majorD = '', dots = '';
+    const fam = (fn, line) => {
+      const vals = cs.map(fn);
+      for (let k = Math.ceil(Math.min(...vals) / g); k <= Math.floor(Math.max(...vals) / g); k++) {
+        const seg = line(k * g);
+        if (k % major === 0) majorD += seg; else minor += seg;
+      }
+    };
+    // lines of constant North (run East), constant East (run North), and verticals
+    fam((c) => c[0] / (2 * C) - c[1], (n) => `M${toS(xL, xL / (2 * C) - n)}L${toS(xR, xR / (2 * C) - n)}`);
+    fam((c) => c[1] + c[0] / (2 * C), (e) => `M${toS(xL, e - xL / (2 * C))}L${toS(xR, e - xR / (2 * C))}`);
+    fam((c) => c[0] / C, (m) => `M${toS(m * C, yT)}L${toS(m * C, yB)}`);
+    if (withDots) {
+      // lattice points: wx = m*g*C, wy = (j + m/2)*g  (every vertical line, half-step offset on odd m)
+      const m0 = Math.ceil(xL / (g * C)), m1 = Math.floor(xR / (g * C));
+      for (let m = m0; m <= m1; m++) {
+        const off = (m & 1) / 2;
+        for (let j = Math.ceil(yT / g - off); j <= Math.floor(yB / g - off); j++) dots += `M${toS(m * g * C, (j + off) * g)}h0`;
+      }
+    }
+    return { minor, major: majorD, dots };
+  };
+
+  /** Pick a grid step (multiple of base) so cells are at least minPx apart on screen. */
+  ISO.gridStepFor = (base, z, minPx) => {
+    let g = base > 0 ? base : 1000;
+    const mult = [2, 2.5, 2];
+    let i = 0;
+    while (g * z < minPx) g *= mult[i++ % 3];
+    return g;
+  };
+
+  ISO.PAPER = { bg: '#fbfdff', minor: '#d4e6f3', major: '#a9cbe4', dot: '#5f9cc9' };
+
+  /** North arrow + axis hint. */
+  ISO.northArrow = (x, y, s, col, font) => {
+    const d = ISO.iso([0, 1, 0]); // north in screen
+    const tip = [x + d[0] * s, y + d[1] * s];
+    const n = [-d[1], d[0]];
+    const base = [x + d[0] * s * 0.45, y + d[1] * s * 0.45];
+    return line([x, y], tip, col, s * 0.05) +
+      poly([tip, add(base, n, s * 0.16), add(base, n, -s * 0.16)], col) +
+      `<text x="${r2(tip[0] + font * 0.5)}" y="${r2(tip[1] - font * 0.3)}" font-size="${r2(font)}" font-weight="700" fill="${col}">N</text>`;
+  };
+
+  ISO.PAPERS = {
+    A3: { W: 420, H: 297, tbW: 190, rh: 8, head: 16, sym: 3.4, font: 3, lw: 0.8, notesFs: 2.6 },
+    A4: { W: 297, H: 210, tbW: 172, rh: 7, head: 14, sym: 2.8, font: 2.5, lw: 0.7, notesFs: 2.3 },
+  };
+
+  /**
+   * Full landscape sheet (A3 or A4) with frame, title block (company logo, website, creator)
+   * and the drawing fitted in. Returns an SVG document string.
+   * opts: { paper: 'A3'|'A4', pxWidth }
+   */
+  ISO.renderSheet = (doc, opts = {}) => {
+    const prof = ISO.profile ? ISO.profile.get() : {};
+    const paper = ISO.PAPERS[opts.paper || prof.paper] ? (opts.paper || prof.paper) : 'A3';
+    const PP = ISO.PAPERS[paper];
+    const W = PP.W, H = PP.H, M = 10, rh = PP.rh;
+    const tbW = PP.tbW, tbH = PP.head + rh * 7;
+    const tbX = W - M - tbW, tbY = H - M - tbH;
+    const col = '#000', bg = '#fff';
+    const out = [];
+    out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${bg}"/>`);
+    out.push(`<rect x="${M}" y="${M}" width="${W - 2 * M}" height="${H - 2 * M}" fill="none" stroke="${col}" stroke-width="0.6"/>`);
+
+    // Drawing area (leaves room for the north arrow)
+    const area = { x: M + 46, y: M + 22, w: W - 2 * M - 62, h: tbY - M - 36 };
+    const b = ISO.isoBounds(doc);
+    if (b) {
+      const bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
+      const k = Math.min(area.w / bw, area.h / bh, 0.25);
+      const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+      const ox = area.x + area.w / 2, oy = area.y + area.h / 2;
+      const P = (pt) => { const w = ISO.iso(pt); return [ox + (w[0] - cx) * k, oy + (w[1] - cy) * k]; };
+      if (doc.settings.paperOnSheet) {
+        const gx0 = M, gy0 = M, gx1 = W - M, gy1 = tbY;
+        // Paper cell between 5 and 10 mm, aligned with the model grid
+        let g = doc.settings.gridStep > 0 ? doc.settings.gridStep : 1000;
+        while (g * k > 10) g /= 2;
+        while (g * k < 5) g *= 2;
+        const gp = ISO.isoGridPaths(gx0, gy0, gx1, gy1, k, ox - cx * k, oy - cy * k, g);
+        out.push(`<clipPath id="paperClip"><rect x="${gx0}" y="${gy0}" width="${gx1 - gx0}" height="${gy1 - gy0}"/></clipPath>` +
+          `<g clip-path="url(#paperClip)" fill="none"><path d="${gp.minor}" stroke="${ISO.PAPER.minor}" stroke-width="0.12"/>` +
+          `<path d="${gp.major}" stroke="${ISO.PAPER.major}" stroke-width="0.2"/></g>`);
+      }
+      out.push(ISO.renderDrawing(doc, { P, sym: PP.sym, font: PP.font, lw: PP.lw, thin: 0.18, col, bg, dimCol: col, selCol: col, hoverCol: col }));
+    }
+    const na = paper === 'A4' ? 13 : 16;
+    out.push(ISO.northArrow(M + 12, M + 26, na, col, paper === 'A4' ? 3.4 : 4));
+    out.push(`<text x="${M + 5}" y="${M + 34}" font-size="${paper === 'A4' ? 2 : 2.4}" fill="${col}">${esc(ISO.t('sh.nts'))}</text>`);
+
+    // Title block
+    const t = doc.title;
+    const capFs = paper === 'A4' ? 1.6 : 1.8, valMax = paper === 'A4' ? 2.8 : 3.1, bigMax = paper === 'A4' ? 3.7 : 4.2;
+    const cell = (x, y, w, h, cap, val, big) => {
+      const v = String(val || '');
+      const fs = Math.min(big ? bigMax : valMax, (w - 3) / Math.max(1, v.length * 0.56));
+      return `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="none" stroke="${col}" stroke-width="0.3"/>` +
+        (cap ? `<text x="${r2(x + 1)}" y="${r2(y + capFs + 0.5)}" font-size="${capFs}" fill="#444">${esc(cap.toUpperCase())}</text>` : '') +
+        `<text x="${r2(x + 1.2)}" y="${r2(y + h - 1.5)}" font-size="${r2(fs)}" fill="${col}"${big ? ' font-weight="700"' : ''}>${esc(v)}</text>`;
+    };
+    const c3 = tbW / 3, c2 = tbW / 2;
+    let y = tbY;
+    out.push(`<rect x="${tbX}" y="${tbY}" width="${tbW}" height="${tbH}" fill="${bg}" stroke="${col}" stroke-width="0.6"/>`);
+    const T = (k) => ISO.t('tf.' + k);
+
+    // Header: company logo | website + creator
+    const lw = tbW * 0.42;
+    out.push(`<rect x="${tbX}" y="${y}" width="${r2(lw)}" height="${PP.head}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
+    if (prof.logo) {
+      out.push(`<image x="${r2(tbX + 1.5)}" y="${r2(y + 1.5)}" width="${r2(lw - 3)}" height="${r2(PP.head - 3)}" preserveAspectRatio="xMidYMid meet" href="${prof.logo}" xlink:href="${prof.logo}"/>`);
+    }
+    const hx = tbX + lw, hw = tbW - lw;
+    out.push(`<rect x="${r2(hx)}" y="${y}" width="${r2(hw)}" height="${PP.head}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
+    if (prof.site) {
+      const fs = Math.min(valMax, (hw - 3) / Math.max(1, prof.site.length * 0.55));
+      out.push(`<text x="${r2(hx + 1.5)}" y="${r2(y + PP.head * 0.42)}" font-size="${r2(fs)}" font-weight="700" fill="${col}">${esc(prof.site)}</text>`);
+    }
+    if (prof.creator) {
+      out.push(`<text x="${r2(hx + 1.5)}" y="${r2(y + PP.head - 2)}" font-size="${r2(capFs * 1.25)}" fill="#444">${esc(ISO.t('sh.creator').toUpperCase())}: <tspan fill="${col}">${esc(prof.creator)}</tspan></text>`);
+    }
+    y += PP.head;
+    out.push(cell(tbX, y, tbW, rh, '', ISO.t('sh.title'), true)); y += rh;
+    out.push(cell(tbX, y, tbW, rh, T('project'), t.project)); y += rh;
+    out.push(cell(tbX, y, c2, rh, T('client'), t.client) + cell(tbX + c2, y, c2, rh, T('lineNo'), t.lineNo)); y += rh;
+    out.push(cell(tbX, y, c3, rh, T('spec'), t.spec) + cell(tbX + c3, y, c3, rh, T('material'), t.material) + cell(tbX + 2 * c3, y, c3, rh, T('insulation'), t.insulation)); y += rh;
+    out.push(cell(tbX, y, c3, rh, T('testPressure'), t.testPressure) + cell(tbX + c3, y, c3, rh, T('drawnBy'), t.drawnBy) + cell(tbX + 2 * c3, y, c3, rh, T('checkedBy'), t.checkedBy)); y += rh;
+    const q = (tbW - c2) / 2;
+    out.push(cell(tbX, y, c2, rh * 2, T('drawingNo'), t.drawingNo, true));
+    out.push(cell(tbX + c2, y, q, rh, T('date'), t.date) + cell(tbX + c2 + q, y, q, rh, T('units'), 'mm'));
+    out.push(cell(tbX + c2, y + rh, q, rh, T('rev'), t.rev) + cell(tbX + c2 + q, y + rh, q, rh, T('sheet'), `${t.sheet} · ${paper}`));
+
+    // Notes box
+    const nx = M, nw = tbX - M - 6;
+    const nfs = PP.notesFs;
+    out.push(`<rect x="${nx}" y="${tbY}" width="${nw}" height="${tbH}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
+    out.push(`<text x="${nx + 2}" y="${tbY + 4.5}" font-size="${r2(nfs + 0.2)}" font-weight="700" fill="${col}">${esc(ISO.t('sh.notes'))}</text>`);
+    const wrap = (str, n) => {
+      const res = [];
+      String(str || '').split('\n').forEach((para) => {
+        let cur = '';
+        para.split(' ').forEach((wd) => {
+          if ((cur + ' ' + wd).trim().length > n) { if (cur) res.push(cur); cur = wd; } else cur = (cur + ' ' + wd).trim();
+        });
+        res.push(cur);
+      });
+      return res;
+    };
+    const lh = nfs * 2.4;
+    wrap(t.notes, Math.floor((nw - 4) / (nfs * 0.56))).slice(0, Math.floor((tbH - 8) / lh)).forEach((l, i) =>
+      out.push(`<text x="${nx + 2}" y="${r2(tbY + 10 + i * lh)}" font-size="${nfs}" fill="${col}">${esc(l)}</text>`));
+
+    const wAttr = opts.pxWidth ? `width="${opts.pxWidth}" height="${Math.round((opts.pxWidth * H) / W)}"` : `width="${W}mm" height="${H}mm"`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ${wAttr} viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">${out.join('')}</svg>`;
+  };
+})();
