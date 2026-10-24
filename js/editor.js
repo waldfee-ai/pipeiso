@@ -1259,7 +1259,7 @@
       if (doc.settings.angles !== '45') h += `<div class="note">${esc(T('pp.hint45'))}</div>`;
       h += '<div class="row2">' + field(T('sb.standard'), select('pp-std', pipe.std, stdOpts())) + field(T('sb.dn'), select('pp-dn', pipe.dn, dnOpts(pipe.std))) + '</div>';
       h += `<div class="msg" id="pp-msg">${esc(popup.msg || '')}</div>`;
-      h += `<div class="actions">${popup.t != null ? `<button id="pp-bend">${esc(T('pp.bend'))}</button>` : ''}<span style="flex:1"></span><button class="primary" id="pp-apply">${esc(T('pp.apply'))}</button></div>`;
+      h += `<div class="actions"><button class="danger" id="pp-del">${esc(T('sb.delete'))}</button>${popup.t != null ? `<button id="pp-bend">${esc(T('pp.bend'))}</button>` : ''}<span style="flex:1"></span><button class="primary" id="pp-apply">${esc(T('pp.apply'))}</button></div>`;
     } else if (popup.kind === 'fitting') {
       const f = ISO.byId(doc.fittings, popup.id);
       if (!f) { closePopup(); return; }
@@ -1286,6 +1286,7 @@
         dnSel.innerHTML = dnOpts(stdSel.value).map(([k, l]) => `<option value="${k}"${k === d ? ' selected' : ''}>${l}</option>`).join('');
       });
       $('#pp-apply').addEventListener('click', () => applyPipePopup(id));
+      $('#pp-del').addEventListener('click', deleteSelected);
       popupEl.querySelectorAll('input').forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPipePopup(id); }));
       const bend = $('#pp-bend');
       if (bend) bend.addEventListener('click', () => addBend(id));
