@@ -1,8 +1,8 @@
 /* PipeIso service worker: keeps the app working offline once it has been opened. */
-const CACHE = 'pipeiso-v3';
+const CACHE = 'pipeiso-v4';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
-  './js/i18n.js', './js/core.js', './js/render.js', './js/dxf.js', './js/export.js', './js/editor.js',
+  './js/i18n.js', './js/core.js', './js/render.js', './js/logo.js', './js/dxf.js', './js/export.js', './js/editor.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png',
 ];
 

@@ -39,9 +39,10 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
 - Undo/redo, zoom and pan, and autosave in the browser. Zooming steps through the standard scales 1:1, 1:2, 1:5, 1:10, 1:20, 1:25, 1:50, 1:100, 1:200, 1:250, 1:500, 1:1000 and 1:2000 (on screen, at the standard 96 dpi); the current scale is shown and can be picked at the bottom left of the drawing
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)
-- **Settings** (gear button): company logo (PNG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options
+- **Settings** (gear button): company logo (SVG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options
 - **Settings backup**: export all settings to a `pipeiso-settings.json` file and import them in another browser or on another device
-- **Export**: PDF file (A4 or A3), DXF file for CAD (the same sheet, in mm, with layers for pipes, components, dimensions, labels, title block and frame; the company logo is not included), or print
+- **Company logo as SVG**: printed sharp in the title block of the PDF and print, and converted to lines on its own layer `LOGO` in the DXF (curves become short straight pieces, filled areas become outlines). The uploaded file is cleaned first: scripts, links to other files and embedded pictures are removed. Tip: convert texts to paths before saving the SVG
+- **Export**: PDF file (A4 or A3), DXF file for CAD (the same sheet, in mm, with layers for pipes, components, dimensions, labels, title block, logo and frame), or print
 - **Share** button: send the sheet as PDF or DXF, or the drawing file, through the phone's or computer's share menu (falls back to a download where sharing isn't supported)
 - **Installable web app**: add PipeIso to the home screen or desktop; it then also works offline (see below)
 - Save and open drawings as `.bpi` files (older `.pipeiso.json` files still open)
@@ -105,6 +106,7 @@ js/i18n.js        English and German translations
 manifest.webmanifest, sw.js, icons/   Web app (install + offline)
 js/core.js        Geometry, iso projection, document model
 js/render.js      SVG rendering of the drawing and the A3 sheet
+js/logo.js        Company logo: cleans uploaded SVG files
 js/dxf.js         DXF export (AutoCAD R12) of the sheet
 js/export.js      Save/open, PDF and DXF export, print, settings backup
 js/editor.js      Tools, mouse/keyboard handling, properties panel

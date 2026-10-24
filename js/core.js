@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-23.4'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-10-24.1'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
@@ -166,7 +166,8 @@
   // Personal / company settings, kept in this browser (not in the drawing file)
   const PROFILE_KEY = 'pipeiso.profile.v1';
   ISO.profile = (() => {
-    let data = { logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, titleTpl: {} };
+    // logoSvg = company logo (cleaned SVG text); logo = old PNG logo, no longer used
+    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, titleTpl: {} };
     try { Object.assign(data, JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')); } catch (e) { /* ignore */ }
     return {
       get: () => data,

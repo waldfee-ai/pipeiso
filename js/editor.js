@@ -1730,9 +1730,11 @@
     const paper = ISO.exporter.paperOf();
     let h = `<div class="dlg-head"><h2>${esc(T('set.title'))}</h2><button data-close>✕</button></div><div class="dlg-body">`;
     h += `<h4>${esc(T('set.company'))}</h4>`;
-    h += `<label class="field"><span>${esc(T('set.logo'))}</span></label><div class="logo-row"><div class="logo-box" id="logoBox">${pr.logo ? `<img src="${pr.logo}" alt="">` : esc(T('set.noLogo'))}</div>` +
-      `<div class="logo-actions"><button id="logoUp">${esc(T('set.logoUpload'))}</button>${pr.logo ? `<button class="danger" id="logoDel">${esc(T('set.logoRemove'))}</button>` : ''}` +
-      `<input type="file" id="logoFile" accept="image/png" hidden></div></div><div class="msg" id="logoMsg"></div>`;
+    const hasLogo = !!pr.logoSvg;
+    h += `<label class="field"><span>${esc(T('set.logo'))}</span></label><div class="logo-row"><div class="logo-box" id="logoBox">${hasLogo ? logoImg(pr.logoSvg) : esc(T('set.noLogo'))}</div>` +
+      `<div class="logo-actions"><button id="logoUp">${esc(T('set.logoUpload'))}</button>${hasLogo || pr.logo ? `<button class="danger" id="logoDel">${esc(T('set.logoRemove'))}</button>` : ''}` +
+      `<input type="file" id="logoFile" accept=".svg,image/svg+xml" hidden></div></div><div class="msg" id="logoMsg">${!hasLogo && pr.logo ? esc(T('set.logoOldPng')) : ''}</div>`;
+    h += `<div class="note-box" style="margin:-2px 0 10px">${esc(T('set.logoHint'))}</div>`;
     h += field(T('set.site'), text('pf-site', pr.site, 'placeholder="www.example.com" inputmode="url" autocomplete="url"'));
     h += field(T('set.creator'), text('pf-creator', pr.creator, 'autocomplete="name"'));
     h += `<div class="note-box">${esc(T('set.creatorHint'))} ${esc(T('set.profileNote'))}</div>`;
@@ -1784,7 +1786,7 @@
     $('#logoUp').addEventListener('click', () => file.click());
     file.addEventListener('change', () => { const f = file.files[0]; file.value = ''; if (f) loadLogo(f); });
     const del = $('#logoDel');
-    if (del) del.addEventListener('click', () => { ISO.profile.set({ logo: '' }); renderSettings(); });
+    if (del) del.addEventListener('click', () => { ISO.profile.set({ logoSvg: '', logo: '' }); renderSettings(); });
     $('#pf-site').addEventListener('change', (e) => ISO.profile.set({ site: e.target.value.trim() }));
     $('#pf-creator').addEventListener('change', (e) => {
       const v = e.target.value.trim();
@@ -1857,13 +1859,18 @@
   function settingsBackup() {
     const drawing = {};
     DRAWING_KEYS.forEach((k) => { drawing[k] = doc.settings[k]; });
-    return { app: 'PipeIso', kind: 'settings', version: 1, profile: ISO.profile.get(), lang: ISO.getLang(), drawing };
+    const profile = Object.assign({}, ISO.profile.get());
+    delete profile.logo; // old PNG logo, no longer used
+    return { app: 'PipeIso', kind: 'settings', version: 2, profile, lang: ISO.getLang(), drawing };
   }
   /** Only known, well-formed values are taken over from a settings file. */
   function cleanProfile(p) {
     const out = {};
     const str = (v, max = 500) => (typeof v === 'string' ? v.slice(0, max) : null);
-    if (typeof p.logo === 'string' && (p.logo === '' || /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.logo))) out.logo = p.logo;
+    if (p.logoSvg === '') out.logoSvg = '';
+    else if (typeof p.logoSvg === 'string' && p.logoSvg.length <= ISO.LOGO_MAX_BYTES) {
+      try { out.logoSvg = ISO.cleanLogoSvg(p.logoSvg); out.logo = ''; } catch (e) { /* unusable logo: keep the current one */ }
+    }
     ['site', 'creator'].forEach((k) => { const v = str(p[k]); if (v !== null) out[k] = v; });
     if (ISO.PAPERS[p.paper]) out.paper = p.paper;
     if (p.reducerStep === 1 || p.reducerStep === 2) out.reducerStep = p.reducerStep;
@@ -1938,25 +1945,18 @@
     }));
   }
 
-  /** Read a PNG, shrink it to a sensible size and keep it as the company logo. */
-  function loadLogo(file) {
+  /** Read an SVG file, clean it and keep it as the company logo. */
+  async function loadLogo(file) {
     const msg = $('#logoMsg');
-    if (file.type !== 'image/png' && !/\.png$/i.test(file.name)) { msg.textContent = T('err.logoType'); return; }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const k = Math.min(1, 900 / img.width, 300 / img.height);
-      const cv = document.createElement('canvas');
-      cv.width = Math.max(1, Math.round(img.width * k));
-      cv.height = Math.max(1, Math.round(img.height * k));
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      URL.revokeObjectURL(url);
-      if (!ISO.profile.set({ logo: cv.toDataURL('image/png') })) { msg.textContent = T('err.logoSave'); return; }
-      renderSettings();
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); msg.textContent = T('err.logoType'); };
-    img.src = url;
+    if (file.type !== 'image/svg+xml' && !/\.svg$/i.test(file.name)) { msg.textContent = T('err.logoType'); return; }
+    if (file.size > ISO.LOGO_MAX_BYTES) { msg.textContent = T('err.logoBig'); return; }
+    let svgText;
+    try { svgText = ISO.cleanLogoSvg(await file.text()); } catch (e) { msg.textContent = T(e.message.startsWith('err.') ? e.message : 'err.logoType'); return; }
+    if (!ISO.profile.set({ logoSvg: svgText, logo: '' })) { msg.textContent = T('err.logoSave'); return; }
+    renderSettings();
   }
+  /** Logo as an <img> for previews (an image can't run anything inside the SVG). */
+  const logoImg = (svgText) => `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}" alt="">`;
 
   // ---------- share dialog ----------
   function openShare() {

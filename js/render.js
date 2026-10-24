@@ -430,8 +430,8 @@
     // Header: company logo | website + creator
     const lw = tbW * 0.42;
     out.push(`<rect x="${tbX}" y="${y}" width="${r2(lw)}" height="${PP.head}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
-    if (prof.logo) {
-      out.push(`<image x="${r2(tbX + 1.5)}" y="${r2(y + 1.5)}" width="${r2(lw - 3)}" height="${r2(PP.head - 3)}" preserveAspectRatio="xMidYMid meet" href="${prof.logo}" xlink:href="${prof.logo}"/>`);
+    if (prof.logoSvg && ISO.logoMarkup) {
+      out.push(`<g data-layer="LOGO">${ISO.logoMarkup(prof.logoSvg, r2(tbX + 1.5), r2(y + 1.5), r2(lw - 3), r2(PP.head - 3))}</g>`);
     }
     const hx = tbX + lw, hw = tbW - lw;
     out.push(`<rect x="${r2(hx)}" y="${y}" width="${r2(hw)}" height="${PP.head}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
