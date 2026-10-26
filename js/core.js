@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-26.1'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-10-26.6'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
@@ -72,6 +72,10 @@
     weld: {},
     fieldweld: {},
     flow: { key: 'a', dir: true },
+    // pipe supports: placed on a pipe (no length); side = where the lugs / the welded base plate point;
+    // support = their position along the pipe is dimensioned (chain dimension) and set in mm
+    clamp: { side: true, support: true },
+    weldclamp: { side: true, support: true },
   };
   // Palette categories. A category either lists items or has sub-groups (opened in a slide-out menu).
   ISO.CATEGORIES = [
@@ -88,6 +92,7 @@
     { id: 'reducers', items: ['reducer', 'reducerEcc'] },
     { id: 'flex', items: ['bellows', 'hose'] },
     { id: 'other', items: ['silencer'] },
+    { id: 'supports', items: ['clamp', 'weldclamp'] },
     { id: 'marks', items: ['weld', 'fieldweld', 'flow'] },
   ];
   ISO.fitName = (type) => ISO.t('fit.' + type);
@@ -167,7 +172,7 @@
   const PROFILE_KEY = 'pipeiso.profile.v1';
   ISO.profile = (() => {
     // logoSvg = company logo (cleaned SVG text); logo = old PNG logo, no longer used
-    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, exportGrid: true, titleTpl: {} };
+    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, exportGrid: true, exportLegend: true, titleTpl: {} };
     try { Object.assign(data, JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')); } catch (e) { /* ignore */ }
     return {
       get: () => data,

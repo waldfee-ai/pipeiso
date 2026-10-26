@@ -25,6 +25,7 @@ No installation, no build step, no internet connection needed: just open `index.
   - Reducers: concentric, eccentric
   - Compensators & hoses: bellows, flexible hose
   - Silencers & more: silencer
+  - Supports: pipe clamp (ring with bolt lugs), weld-on pipe clamp (ring with base plate and fillet welds); flip the side of the lugs / plate with `X`. Their position along the pipe is dimensioned (chain dimension on the side opposite the pipe's length, e.g. 1000 | 2000) and can be typed in mm (distance from the pipe start) in the panel or the edit / long-press box
   - Welds & marks: shop weld, field weld, flow arrow
 - **Valves, reducers, bellows and hoses are added into the line** with their own face-to-face length: clicking on a pipe splits it there and the pipe gets longer by the component's length (everything beyond moves along). Deleting a component closes the gap again. Set the length for new components in the bar above the drawing (empty = typical length for the size)
 - **Component dimensions**: each of these components gets its own length dimension and a size label (e.g. `DN40`, or `DN40 × DN25` for a reducer). Edit length, nominal size and the reducer's small end with the Edit tool or in the panel
@@ -35,12 +36,13 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Double-click** a pipe end to continue drawing from it. Double-click a label to edit it
 - **English and German** interface. Pick the language at the top right; the exported sheet follows it
 - **Labels** with leader lines (line numbers, elevations, notes) that you can drag into place
-- **Automatic dimensions** for every pipe. You can hide them or move them to the other side for each pipe
-- **Angles at elbows**: the true angle between the two pipes (e.g. 90°, 135°) is shown with an arc at each elbow, on screen and in the PDF and DXF (layer `ANGLES`); can be switched off in Settings → Drawing
+- **Automatic dimensions** for every pipe. One click (or tap) on a dimension moves it to the other side of the pipe; you can also hide it per pipe
+- **Angles at elbows**: the true angle between the two pipes is shown with an arc at each elbow (right angles with the usual dot inside the arc, other angles with their value, e.g. 135°), on screen and in the PDF and DXF (layer `ANGLES`); can be switched off in Settings → Drawing
 - **Pipe direction** can be changed in the pipe panel and in the Edit / long-press box; it applies at once and everything beyond the pipe moves along
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
 - Undo/redo, zoom and pan, and autosave in the browser. Zooming steps through the standard scales 1:1, 1:2, 1:5, 1:10, 1:20, 1:25, 1:50, 1:100, 1:200, 1:250, 1:500, 1:1000 and 1:2000 (on screen, at the standard 96 dpi); the current scale is shown and can be picked at the bottom left of the drawing
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)
+- **Symbol legend** in the notes field of the exported sheet: every symbol used in the drawing with a small picture, its name and how often it is used (switch in Settings → Export)
 - **Settings** (gear button): company logo (SVG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options
 - **Settings backup**: export all settings to a `pipeiso-settings.json` file and import them in another browser or on another device
 - **Company logo as SVG**: printed sharp in the title block of the PDF and print, and converted to lines on its own layer `LOGO` in the DXF (curves become short straight pieces, filled areas become outlines). The uploaded file is cleaned first: scripts, links to other files and embedded pictures are removed. Tip: convert texts to paths before saving the SVG

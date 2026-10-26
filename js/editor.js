@@ -188,6 +188,44 @@
     return null;
   }
 
+  /** Field for a support's position: distance from the start of its pipe in mm, and the distance to the other end. */
+  function supportPosHtml(f, id) {
+    const L = ISO.pipeLen(doc, ISO.byId(doc.pipes, f.pipeId)), mm = Math.round(f.t * L);
+    return field(T('sb.posMm'), num(id, mm, `min="1" max="${Math.max(1, Math.floor(L) - 1)}" step="1"`)) + `<div class="msg" id="${id}-msg"></div>` +
+      `<div class="note-box" style="margin:-4px 0 10px">${esc(T('sb.toEnd', { n: Math.round(L - mm) }))}</div>`;
+  }
+  /** Move a support to v mm from the start of its pipe. Returns an error message or null. */
+  function setSupportPos(fid, v) {
+    const f = ISO.byId(doc.fittings, fid);
+    const L = ISO.pipeLen(doc, ISO.byId(doc.pipes, f.pipeId));
+    const n = parseFloat(v);
+    if (!(n > 0 && n < L)) return T('err.posMm', { n: Math.max(1, Math.floor(L) - 1) });
+    f.t = n / L;
+    return null;
+  }
+
+  /** Dimension under the pointer (its line or its number), as { type: 'dim', id: pipe id }, or null. */
+  function dimHit(s) {
+    if (!doc.settings.showDims) return null;
+    const k = tm();
+    let best = null;
+    for (const pipe of doc.pipes) {
+      if (pipe.hideDim || ISO.pipeLen(doc, pipe) < 1) continue;
+      const { A2, B2, off } = ISO.dimGeom(pipe, ISO.pipeGeom(doc, pipe, P), STYLE.sym);
+      const text = add(lerp(A2, B2, 0.5), off, STYLE.font * 0.85);
+      const dl = distSeg(s, A2, B2).d, dt = dist(s, text);
+      if (dl > 6 * k && dt > STYLE.font * 1.6 * k) continue;
+      const d = Math.min(dl, dt * 0.7);
+      if (!best || d < best.d) best = { type: 'dim', id: pipe.id, d };
+    }
+    return best;
+  }
+  /** Move a pipe's dimension to the other side of the pipe (one undo step). */
+  function flipDim(id) {
+    const pipe = ISO.byId(doc.pipes, id);
+    if (pipe) commit(() => { pipe.dimFlip = !pipe.dimFlip; });
+  }
+
   // ---------- component orientation (outward / inward) ----------
   /** Centre of the drawing on screen; "outward" means away from it. */
   function drawingCenter() {
@@ -1166,7 +1204,8 @@
       const f = obj;
       h += `<h3>${esc(ISO.fitName(f.type))}</h3>`;
       h += field(T('sb.type'), select('f-type', f.type, pointTypes()));
-      h += field(T('sb.pos'), num('f-pos', Math.round(f.t * 100), 'min="1" max="99" step="1"')) + '<div class="msg" id="f-pos-msg"></div>';
+      if (ISO.FITTINGS[f.type].support) h += supportPosHtml(f, 'f-mm');
+      else h += field(T('sb.pos'), num('f-pos', Math.round(f.t * 100), 'min="1" max="99" step="1"')) + '<div class="msg" id="f-pos-msg"></div>';
       h += orientRows({ type: 'fitting', id: f.id }, 'sb');
       h += `<p><button class="danger" id="del">${esc(T('sb.delete'))}</button></p>`;
     } else if (sel.type === 'label') {
@@ -1206,6 +1245,7 @@
       const id = sel.id;
       bind('f-type', (v) => { ISO.byId(doc.fittings, id).type = v; setTimeout(renderSidebar); });
       bind('f-pos', (v) => { const n = parseFloat(v); if (!(n > 0 && n < 100)) return T('err.pos'); ISO.byId(doc.fittings, id).t = n / 100; });
+      bind('f-mm', (v) => { const err = setSupportPos(id, v); if (!err) setTimeout(renderSidebar); return err; });
       sidebar.querySelectorAll('[data-flip]').forEach((b) => b.addEventListener('click', () => flipItem({ type: 'fitting', id }, b.dataset.flip)));
     } else if (sel.type === 'label') {
       const id = sel.id;
@@ -1286,7 +1326,8 @@
       if (!f) { closePopup(); return; }
       h += `<h3>${esc(ISO.fitName(f.type))} ${close}</h3>`;
       h += field(T('sb.type'), select('pp-type', f.type, pointTypes()));
-      h += field(T('pp.position'), num('pp-pos', Math.round(f.t * 100), 'min="1" max="99" step="1"'));
+      if (ISO.FITTINGS[f.type].support) h += supportPosHtml(f, 'pp-mm');
+      else h += field(T('pp.position'), num('pp-pos', Math.round(f.t * 100), 'min="1" max="99" step="1"'));
       h += orientRows({ type: 'fitting', id: f.id }, 'pp');
       h += `<div class="msg" id="pp-msg">${esc(popup.msg || '')}</div>`;
       h += `<div class="actions"><button class="danger" id="pp-del">${esc(T('sb.delete'))}</button></div>`;
@@ -1314,11 +1355,23 @@
       if (bend) bend.addEventListener('click', () => addBend(id));
     } else {
       $('#pp-type').addEventListener('change', (e) => commit(() => { ISO.byId(doc.fittings, id).type = e.target.value; }));
-      $('#pp-pos').addEventListener('change', (e) => {
+      const pp = $('#pp-pos');
+      if (pp) pp.addEventListener('change', (e) => {
         const n = parseFloat(e.target.value);
         if (!(n > 0 && n < 100)) { popup.msg = T('err.pos'); renderPopup(); return; }
         commit(() => { ISO.byId(doc.fittings, id).t = n / 100; });
       });
+      const pm = $('#pp-mm');
+      if (pm) {
+        pm.addEventListener('change', () => {
+          const before = snapshot();
+          const err = setSupportPos(id, pm.value);
+          popup.msg = err || '';
+          if (err) { renderPopup(); return; }
+          undoStack.push(before); redoStack.length = 0; changed();
+        });
+        pm.addEventListener('keydown', (e) => { if (e.key === 'Enter') pm.blur(); });
+      }
       popupEl.querySelectorAll('[data-flip]').forEach((b) => b.addEventListener('click', () => flipItem({ type: 'fitting', id }, b.dataset.flip)));
       $('#pp-del').addEventListener('click', deleteSelected);
     }
@@ -1393,6 +1446,7 @@
     if (tool === 'select') {
       if (isDouble) { drag = null; onDoubleClick(s); return; }
       const h = hitTest(s);
+      if (!h) { const dh = dimHit(s); if (dh) { flipDim(dh.id); return; } } // a click on a dimension flips it
       sel = h ? { type: h.type, id: h.id } : null;
       if (h && (h.type === 'fitting' || h.type === 'label') && e) {
         drag = { kind: h.type, id: h.id, s0: s, moved: false };
@@ -1402,7 +1456,7 @@
       if (isMobile() && !sel) closeSheet();
     } else if (tool === 'edit') {
       const h = hitTest(s, ['fitting', 'pipe']);
-      if (!h) { closePopup(); return; }
+      if (!h) { const dh = dimHit(s); if (dh) flipDim(dh.id); else closePopup(); return; }
       if (h.type === 'fitting') openPopup('fitting', h.id, s);
       else openPopup('pipe', h.id, s, h.t);
     } else if (tool === 'pipe') {
@@ -1593,7 +1647,7 @@
       dragMove(s);
       return;
     }
-    if (tool === 'select' || tool === 'edit') hover = hitTest(s, tool === 'edit' ? ['fitting', 'pipe'] : undefined);
+    if (tool === 'select' || tool === 'edit') hover = hitTest(s, tool === 'edit' ? ['fitting', 'pipe'] : undefined) || dimHit(s);
     else if (tool === 'pipe') preview = run ? runPreview(s) : startCandidate(s);
     else if (tool === 'label') {
       const h = hitTest(s, ['pipe']);
@@ -1774,6 +1828,7 @@
     h += `<label class="field"><span>${esc(T('set.paper'))}</span></label><div class="seg" id="paperSeg">` +
       ['A4', 'A3'].map((k) => `<button data-paper="${k}" class="${k === paper ? 'active' : ''}">DIN ${k}</button>`).join('') + '</div>';
     h += `<div style="margin-top:12px">${check('pf-exportgrid', T('sb.paperOnSheet'), pr.exportGrid !== false)}</div>`;
+    h += check('pf-exportlegend', T('set.exportLegend'), pr.exportLegend !== false);
     h += `<h4>${esc(T('set.lengths'))}</h4>`;
     h += field(T('set.lenType'), select('len-type', lenType, inlineTypes()));
     h += `<div class="len-grid" id="lenGrid">${lenGridHtml()}</div>`;
@@ -1869,6 +1924,7 @@
     $('#pf-gridreset').addEventListener('click', () => setGridColor(''));
     $('#pf-compass').addEventListener('change', (e) => { ISO.profile.set({ showCompass: e.target.checked }); applyDisplay(); });
     $('#pf-exportgrid').addEventListener('change', (e) => { ISO.profile.set({ exportGrid: e.target.checked }); });
+    $('#pf-exportlegend').addEventListener('change', (e) => { ISO.profile.set({ exportLegend: e.target.checked }); });
 
     // Settings backup
     $('#setExport').addEventListener('click', () => ISO.exporter.saveSettings(settingsBackup()));
@@ -1901,6 +1957,7 @@
     if (p.gridColor === '' || ISO.isHexColor(p.gridColor)) out.gridColor = p.gridColor;
     if (typeof p.showCompass === 'boolean') out.showCompass = p.showCompass;
     if (typeof p.exportGrid === 'boolean') out.exportGrid = p.exportGrid;
+    if (typeof p.exportLegend === 'boolean') out.exportLegend = p.exportLegend;
     if (Array.isArray(p.catOrder)) out.catOrder = p.catOrder.filter((x) => MOBILE_CATS.includes(x));
     if (p.titleTpl && typeof p.titleTpl === 'object') {
       out.titleTpl = {};

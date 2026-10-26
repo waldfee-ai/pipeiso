@@ -39,7 +39,7 @@
     'plane.axes': '90°', 'plane.h': '45° horizontal', 'plane.xz': '45° vertical E–W', 'plane.yz': '45° vertical N–S',
     'tip.plane': 'Plane for 45° pipes (Tab switches)',
 
-    'st.select': 'Click to select · X / C flip a selected component · double-click a pipe end to continue drawing · drag fittings and labels to move them · <b>Del</b> deletes · wheel zooms · middle-drag or Space+drag pans',
+    'st.select': 'Click to select · click a dimension to move it to the other side · X / C flip a selected component · double-click a pipe end to continue drawing · drag fittings and labels to move them · <b>Del</b> deletes · wheel zooms · middle-drag or Space+drag pans',
     'st.pipeStart': 'Click or tap a start point: empty space, an existing point (snaps), or on a pipe (makes a tee)',
     'st.pipeRun': '<b>{dir} {len} mm</b> — click to place, or type a length and press <b>Enter</b> · <b>Esc</b>, right-click or double-click ends the run',
     'st.pipeRoute': '<b>Connect to point with {n} pipes</b> (elbows added automatically) — click to connect',
@@ -134,6 +134,13 @@
     'set.lenReset': 'Reset this component to typical lengths', 'set.redStep': 'Small end of new reducers',
     'set.red1': 'One size smaller', 'set.red2': 'Two sizes smaller',
     'prj.ph': 'Project name', 'set.version': 'Version',
+    'fit.clamp': 'Pipe clamp', 'fits.clamp': 'Clamp', 'fit.weldclamp': 'Weld-on pipe clamp', 'fits.weldclamp': 'Weld-on',
+    'cat.supports': 'Supports', 'cats.supports': 'Supports',
+    'sb.posMm': 'Distance from pipe start (mm)', 'sb.toEnd': 'Distance to the other end of the pipe: {n} mm',
+    'err.posMm': 'Between 1 and {n} mm',
+    'sh.legend': 'LEGEND', 'set.exportLegend': 'Show a legend of the symbols used in the notes field',
+    'lg.autoFlange': 'Flange (drawn automatically)', 'lg.elbowWeld': 'Weld at elbow / tee',
+    'lg.right': 'Right angle (90°) between pipes', 'lg.angle': 'Angle between pipes',
     'sb.showAngles': 'Show the angle between the pipes at elbows',
     'tip.scale': 'Scale on screen (at the standard 96 dpi). The mouse wheel, pinch, + and − step through the standard scales.',
     'cats.pipes': 'Pipes', 'cats.valves': 'Valves', 'cats.flanges': 'Flanges', 'cats.reducers': 'Reducers',
@@ -159,6 +166,7 @@
       <p>7. Fill in the title block, then use <b>PDF</b> or <b>Share</b>. Company logo, website, creator and paper size (A4 / A3) are in <b>Settings</b>.</p>
       <p>Click ☆ on any palette item (or long-press it) to add it to Favorites. Valves are grouped – click a group to open it.</p>
       <p>On a phone: drag with one finger to pan, pinch to zoom. Long-press a pipe or component to change its length, size or type. The parts are grouped in the bottom bar: tap a group to open it, long-press a group to move it.</p>
+      <p>Click or tap a dimension to move it to the other side of the pipe.</p>
       <p>Zooming uses the standard scales 1:1 … 1:2000 (mouse wheel, pinch, <kbd>+</kbd> / <kbd>−</kbd>, or the scale box at the bottom left).</p>
       <p>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Fit <kbd>Home</kbd> · Delete <kbd>Del</kbd></p>`,
   };
@@ -199,7 +207,7 @@
     'plane.axes': '90°', 'plane.h': '45° waagerecht', 'plane.xz': '45° senkrecht O–W', 'plane.yz': '45° senkrecht N–S',
     'tip.plane': 'Ebene für 45°-Rohre (Tab wechselt)',
 
-    'st.select': 'Klicken zum Auswählen · X / C kehren ein gewähltes Bauteil um · Doppelklick auf ein Rohrende zeichnet weiter · Armaturen und Texte per Ziehen verschieben · <b>Entf</b> löscht · Mausrad zoomt · mittlere Maustaste oder Leertaste+Ziehen verschiebt',
+    'st.select': 'Klicken zum Auswählen · Klick auf eine Bemaßung legt sie auf die andere Seite · X / C kehren ein gewähltes Bauteil um · Doppelklick auf ein Rohrende zeichnet weiter · Armaturen und Texte per Ziehen verschieben · <b>Entf</b> löscht · Mausrad zoomt · mittlere Maustaste oder Leertaste+Ziehen verschiebt',
     'st.pipeStart': 'Startpunkt klicken oder antippen: freie Fläche, vorhandener Punkt (fängt) oder auf ein Rohr (ergibt ein T-Stück)',
     'st.pipeRun': '<b>{dir} {len} mm</b> — klicken zum Setzen oder Länge eintippen und <b>Enter</b> · <b>Esc</b>, Rechtsklick oder Doppelklick beendet den Strang',
     'st.pipeRoute': '<b>Mit {n} Rohren zum Punkt verbinden</b> (Bögen werden automatisch gesetzt) — klicken zum Verbinden',
@@ -295,6 +303,13 @@
     'set.lenReset': 'Dieses Bauteil auf typische Längen zurücksetzen', 'set.redStep': 'Kleines Ende neuer Reduzierungen',
     'set.red1': 'Eine Nennweite kleiner', 'set.red2': 'Zwei Nennweiten kleiner',
     'prj.ph': 'Projektname', 'set.version': 'Version',
+    'fit.clamp': 'Rohrschelle', 'fits.clamp': 'Schelle', 'fit.weldclamp': 'Anschweiß-Rohrschelle', 'fits.weldclamp': 'Anschweiß.',
+    'cat.supports': 'Halterungen', 'cats.supports': 'Halter.',
+    'sb.posMm': 'Abstand vom Rohranfang (mm)', 'sb.toEnd': 'Abstand zum anderen Rohrende: {n} mm',
+    'err.posMm': 'Zwischen 1 und {n} mm',
+    'sh.legend': 'LEGENDE', 'set.exportLegend': 'Legende der verwendeten Symbole im Bemerkungsfeld anzeigen',
+    'lg.autoFlange': 'Flansch (automatisch gezeichnet)', 'lg.elbowWeld': 'Schweißnaht an Bogen / T-Stück',
+    'lg.right': 'Rechter Winkel (90°) zwischen Rohren', 'lg.angle': 'Winkel zwischen Rohren',
     'sb.showAngles': 'Winkel zwischen den Rohren an Bögen anzeigen',
     'tip.scale': 'Maßstab am Bildschirm (bei Standard-96-dpi). Mausrad, Zwei-Finger-Zoom, + und − springen von Normmaßstab zu Normmaßstab.',
     'cats.pipes': 'Rohre', 'cats.valves': 'Armaturen', 'cats.flanges': 'Flansche', 'cats.reducers': 'Reduzier.',
@@ -320,6 +335,7 @@
       <p>7. Das Schriftfeld ausfüllen, dann <b>PDF</b> oder <b>Teilen</b> wählen. Firmenlogo, Website, Ersteller und Papierformat (A4 / A3) stehen in den <b>Einstellungen</b>.</p>
       <p>☆ an einem Element anklicken (oder lange drücken), um es zu den Favoriten hinzuzufügen. Armaturen sind gruppiert – eine Gruppe anklicken, um sie zu öffnen.</p>
       <p>Auf dem Smartphone: mit einem Finger verschieben, mit zwei Fingern zoomen. Ein Rohr oder Bauteil lange drücken, um Länge, Nennweite oder Typ zu ändern. Die Teile sind in der unteren Leiste gruppiert: eine Gruppe antippen zum Öffnen, lange drücken zum Verschieben.</p>
+      <p>Eine Bemaßung anklicken oder antippen, um sie auf die andere Seite des Rohrs zu legen.</p>
       <p>Gezoomt wird in Normmaßstäben 1:1 … 1:2000 (Mausrad, Zwei-Finger-Zoom, <kbd>+</kbd> / <kbd>−</kbd> oder das Maßstabsfeld unten links).</p>
       <p>Rückgängig <kbd>Strg+Z</kbd> · Wiederholen <kbd>Strg+Y</kbd> · Einpassen <kbd>Pos1</kbd> · Löschen <kbd>Entf</kbd></p>`,
   };
