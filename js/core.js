@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-24.1'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-10-26.1'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
@@ -167,7 +167,7 @@
   const PROFILE_KEY = 'pipeiso.profile.v1';
   ISO.profile = (() => {
     // logoSvg = company logo (cleaned SVG text); logo = old PNG logo, no longer used
-    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, titleTpl: {} };
+    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, exportGrid: true, titleTpl: {} };
     try { Object.assign(data, JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')); } catch (e) { /* ignore */ }
     return {
       get: () => data,
@@ -203,7 +203,7 @@
     return {
       app: 'PipeIso',
       version: 1,
-      settings: { gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showCompSizes: true, gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends' },
+      settings: { gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showAngles: true, showCompSizes: true, gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends' },
       title,
       nodes: {},
       pipes: [],

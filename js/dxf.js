@@ -9,7 +9,7 @@
   const ISO = window.ISO;
 
   // Layer name -> AutoCAD colour index (7 = black/white, 3 = green, 9 = light grey)
-  const LAYERS = { 0: 7, FRAME: 7, TITLEBLOCK: 7, LOGO: 7, ANNOTATION: 7, PIPES: 7, COMPONENTS: 7, DIMENSIONS: 3, LABELS: 7, GRID: 9 };
+  const LAYERS = { 0: 7, FRAME: 7, TITLEBLOCK: 7, LOGO: 7, ANNOTATION: 7, PIPES: 7, COMPONENTS: 7, DIMENSIONS: 3, ANGLES: 3, LABELS: 7, GRID: 9 };
 
   const fmt = (v) => { const r = Math.round(v * 1000) / 1000; return Object.is(r, -0) ? '0' : String(r); };
   /** Text for DXF: characters outside plain ASCII written as \U+XXXX (understood by AutoCAD, LibreCAD, …). */

@@ -13,7 +13,7 @@ No installation, no build step, no internet connection needed: just open `index.
   - *On pipe – tee*: start on, or run into, an existing pipe
   - *Aligned*: line the end up with another point
   - *Auto route*: finish on a point that isn't in line, and the connecting pipes and elbows are added for you
-- Grid lines (isometric paper) can be switched on or off for the export (PDF, DXF and print) in Settings → Export
+- Grid lines (isometric paper) are shown in the export (PDF, DXF and print); they can be switched off in Settings → Export
 - **Pipe tool** that snaps to the six iso directions. You can click to place a pipe, or type an exact length in mm and press Enter
 - Elbows are created automatically at each change of direction. Starting on an existing pipe creates a **tee**
 - **Pipe angles**: 90° only, or 45° and 90°. 45° pipes are drawn in one plane at a time: horizontal, vertical East–West or vertical North–South. Switch the plane with `Tab` or the buttons above the drawing
@@ -36,6 +36,8 @@ No installation, no build step, no internet connection needed: just open `index.
 - **English and German** interface. Pick the language at the top right; the exported sheet follows it
 - **Labels** with leader lines (line numbers, elevations, notes) that you can drag into place
 - **Automatic dimensions** for every pipe. You can hide them or move them to the other side for each pipe
+- **Angles at elbows**: the true angle between the two pipes (e.g. 90°, 135°) is shown with an arc at each elbow, on screen and in the PDF and DXF (layer `ANGLES`); can be switched off in Settings → Drawing
+- **Pipe direction** can be changed in the pipe panel and in the Edit / long-press box; it applies at once and everything beyond the pipe moves along
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
 - Undo/redo, zoom and pan, and autosave in the browser. Zooming steps through the standard scales 1:1, 1:2, 1:5, 1:10, 1:20, 1:25, 1:50, 1:100, 1:200, 1:250, 1:500, 1:1000 and 1:2000 (on screen, at the standard 96 dpi); the current scale is shown and can be picked at the bottom left of the drawing
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)

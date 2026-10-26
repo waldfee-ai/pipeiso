@@ -267,6 +267,22 @@
     }
     return list;
   }
+  /** Directions a pipe can be turned to (dropdown entries), including its current one. */
+  function dirChoices(pipe) {
+    const [a, b] = ISO.pipeEnds(doc, pipe);
+    const cur = ISO.dirOf(a, b);
+    const dirs = allDirs();
+    if (cur && !dirs.some((D) => D.key === cur.key)) dirs.push(cur);
+    return { cur, opts: (cur ? [] : [['', T('sb.oblique')]]).concat(dirs.map((D) => [D.key, ISO.dirName(D)])) };
+  }
+  /** Turn a pipe to another direction, keeping its length (everything beyond moves along). Returns an error or null. */
+  function setPipeDir(pipe, key) {
+    const D = Object.values(ISO.PLANES).flat().find((x) => x.key === key);
+    if (!pipe || !D) return null;
+    const [a, b] = ISO.pipeEnds(doc, pipe);
+    const vec = v3.scale(D.v, ISO.pipeLen(doc, pipe));
+    return v3.eq(v3.add(a, vec), b) ? null : ISO.setPipeVector(doc, pipe, vec);
+  }
   function setPlane(p) {
     plane = p;
     updatePlanebar();
@@ -1088,6 +1104,7 @@
       field(T('sb.snap'), num('s-snap', st.snap, 'min="1" step="1"')) + '</div><div class="msg" id="s-grid-msg"></div><div class="msg" id="s-snap-msg"></div>';
     h += field(T('sb.background'), select('s-gridstyle', st.gridStyle || 'lines', [['lines', T('bg.lines')], ['dots', T('bg.dots')], ['none', T('bg.none')]]));
     h += check('s-dims', T('sb.showDims'), st.showDims);
+    h += check('s-showang', T('sb.showAngles'), st.showAngles !== false);
     h += check('s-csizes', T('sb.showCompSizes'), st.showCompSizes !== false);
     h += check('s-gsnap', T('sb.gridSnap'), st.gridSnap !== false);
     h += check('s-welds', T('sb.showWelds'), st.showWelds);
@@ -1101,8 +1118,8 @@
     bind('s-grid', (v) => { const n = parseFloat(v); if (!(n >= 10)) return T('err.min', { n: 10 }); doc.settings.gridStep = n; });
     bind('s-snap', (v) => { const n = parseFloat(v); if (!(n >= 1)) return T('err.min', { n: 1 }); doc.settings.snap = n; });
     bind('s-gridstyle', (v) => { doc.settings.gridStyle = v; });
-    bind('s-paper', (v) => { doc.settings.paperOnSheet = v; });
     bind('s-dims', (v) => { doc.settings.showDims = v; });
+    bind('s-showang', (v) => { doc.settings.showAngles = v; });
     bind('s-csizes', (v) => { doc.settings.showCompSizes = v; });
     bind('s-gsnap', (v) => { doc.settings.gridSnap = v; });
     bind('s-welds', (v) => { doc.settings.showWelds = v; });
@@ -1136,8 +1153,11 @@
       const [a, b] = ISO.pipeEnds(doc, pipe);
       const dd = ISO.dirOf(a, b);
       h += `<h3>${esc(T('sb.pipe'))} · ${esc(ISO.sizeLabel(pipe))}</h3>`;
-      h += `<div class="readonly">${esc(T('sb.direction'))}: <b>${esc(dd ? ISO.dirName(dd) : T('sb.oblique'))}</b><br>${esc(T('sb.from'))} ${fmtPt(a)}<br>${esc(T('sb.to'))} ${fmtPt(b)}</div>`;
+      const dc = dirChoices(pipe);
       h += field(T('sb.length'), num('p-len', Math.round(ISO.pipeLen(doc, pipe)), 'min="1" step="1"')) + '<div class="msg" id="p-len-msg"></div>';
+      h += field(T('pp.angle'), select('p-dir', dd ? dd.key : '', dc.opts)) + '<div class="msg" id="p-dir-msg"></div>';
+      if (doc.settings.angles !== '45') h += `<div class="note-box" style="margin:-4px 0 10px">${esc(T('pp.hint45'))}</div>`;
+      h += `<div class="readonly">${esc(T('sb.from'))} ${fmtPt(a)}<br>${esc(T('sb.to'))} ${fmtPt(b)}</div>`;
       h += '<div class="row2">' + field(T('sb.standard'), select('p-std', pipe.std, stdOpts())) + field(T('sb.dn'), select('p-dn', pipe.dn, dnOpts(pipe.std))) + '</div>';
       h += check('p-dim', T('sb.showDim'), !pipe.hideDim);
       h += check('p-flip', T('sb.dimFlip'), !!pipe.dimFlip);
@@ -1177,6 +1197,7 @@
     } else if (sel.type === 'pipe') {
       const id = sel.id;
       bind('p-len', (v) => ISO.setPipeLength(doc, ISO.byId(doc.pipes, id), parseFloat(v)));
+      bind('p-dir', (v) => { const err = setPipeDir(ISO.byId(doc.pipes, id), v); if (!err) setTimeout(renderSidebar); return err; });
       bind('p-std', (v) => { const p = ISO.byId(doc.pipes, id); p.std = v; p.dn = ISO.defaultSpec(doc, v).dn; setTimeout(renderSidebar); });
       bind('p-dn', (v) => { ISO.byId(doc.pipes, id).dn = parseInt(v, 10); setTimeout(renderSidebar); });
       bind('p-dim', (v) => { ISO.byId(doc.pipes, id).hideDim = !v; });
@@ -1286,6 +1307,7 @@
         dnSel.innerHTML = dnOpts(stdSel.value).map(([k, l]) => `<option value="${k}"${k === d ? ' selected' : ''}>${l}</option>`).join('');
       });
       $('#pp-apply').addEventListener('click', () => applyPipePopup(id));
+      $('#pp-dir').addEventListener('change', () => applyPipePopup(id)); // a new direction applies at once
       $('#pp-del').addEventListener('click', deleteSelected);
       popupEl.querySelectorAll('input').forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPipePopup(id); }));
       const bend = $('#pp-bend');
@@ -1751,7 +1773,7 @@
     h += `<h4>${esc(T('set.export'))}</h4>`;
     h += `<label class="field"><span>${esc(T('set.paper'))}</span></label><div class="seg" id="paperSeg">` +
       ['A4', 'A3'].map((k) => `<button data-paper="${k}" class="${k === paper ? 'active' : ''}">DIN ${k}</button>`).join('') + '</div>';
-    h += `<div style="margin-top:12px">${check('s-paper', T('sb.paperOnSheet'), !!doc.settings.paperOnSheet)}</div>`;
+    h += `<div style="margin-top:12px">${check('pf-exportgrid', T('sb.paperOnSheet'), pr.exportGrid !== false)}</div>`;
     h += `<h4>${esc(T('set.lengths'))}</h4>`;
     h += field(T('set.lenType'), select('len-type', lenType, inlineTypes()));
     h += `<div class="len-grid" id="lenGrid">${lenGridHtml()}</div>`;
@@ -1846,6 +1868,7 @@
     $('#pf-gridcolor').addEventListener('input', (e) => setGridColor(e.target.value));
     $('#pf-gridreset').addEventListener('click', () => setGridColor(''));
     $('#pf-compass').addEventListener('change', (e) => { ISO.profile.set({ showCompass: e.target.checked }); applyDisplay(); });
+    $('#pf-exportgrid').addEventListener('change', (e) => { ISO.profile.set({ exportGrid: e.target.checked }); });
 
     // Settings backup
     $('#setExport').addEventListener('click', () => ISO.exporter.saveSettings(settingsBackup()));
@@ -1877,6 +1900,7 @@
     if (Array.isArray(p.favs)) out.favs = p.favs.filter((x) => typeof x === 'string' && itemDef(x));
     if (p.gridColor === '' || ISO.isHexColor(p.gridColor)) out.gridColor = p.gridColor;
     if (typeof p.showCompass === 'boolean') out.showCompass = p.showCompass;
+    if (typeof p.exportGrid === 'boolean') out.exportGrid = p.exportGrid;
     if (Array.isArray(p.catOrder)) out.catOrder = p.catOrder.filter((x) => MOBILE_CATS.includes(x));
     if (p.titleTpl && typeof p.titleTpl === 'object') {
       out.titleTpl = {};

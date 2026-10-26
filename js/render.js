@@ -168,7 +168,7 @@
    */
   ISO.renderDrawing = (doc, o) => {
     // Parts are collected per layer (used as layer names in the DXF export)
-    const lay = { dims: [], pipes: [], comps: [], marks: [], labels: [], sel: [] };
+    const lay = { dims: [], angles: [], pipes: [], comps: [], marks: [], labels: [], sel: [] };
     let out = lay.dims;
     const st = { col: o.col, bg: o.bg, thin: o.thin, lw: o.lw };
     const isSel = (type, id) => o.sel && o.sel.type === type && o.sel.id === id;
@@ -196,6 +196,36 @@
         const ang = r2(textAngle(g.d));
         out.push(`<text x="${r2(mid[0])}" y="${r2(mid[1])}" transform="rotate(${ang} ${r2(mid[0])} ${r2(mid[1])})" ` +
           `font-size="${r2(o.font)}" fill="${dc}" text-anchor="middle" dominant-baseline="central">${Math.round(L)}</text>`);
+      });
+    }
+
+    // Angle between the two pipes at each elbow: the true angle in 3D, drawn as an arc in the plane of the two pipes
+    if (doc.settings.showAngles !== false) {
+      const v3 = ISO.v3, dc = o.dimCol || o.col;
+      const k1 = Math.hypot(...sub(o.P([1, 0, 0]), o.P([0, 0, 0]))) || 1; // drawing units per mm along an axis
+      Object.keys(doc.nodes).forEach((id) => {
+        const ps = ISO.pipesAt(doc, id);
+        if (ps.length !== 2) return;
+        const n = ISO.nodePt(doc, id);
+        const far = ps.map((p) => v3.sub(ISO.nodePt(doc, p.a === id ? p.b : p.a), n));
+        const len = far.map(v3.len);
+        if (len.some((l) => l < 1)) return;
+        const u = v3.scale(far[0], 1 / len[0]), v = v3.scale(far[1], 1 / len[1]);
+        const th = Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1] + u[2] * v[2])));
+        const deg = (th * 180) / Math.PI;
+        if (deg > 179.5 || deg < 0.5) return; // straight on: no angle to show
+        const r = Math.min((o.sym * 2.2) / k1, Math.min(...len) * 0.4);
+        const pts = [];
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16, a = Math.sin((1 - t) * th) / Math.sin(th), b = Math.sin(t * th) / Math.sin(th);
+          pts.push(o.P(v3.add(n, v3.scale(v3.add(v3.scale(u, a), v3.scale(v, b)), r))));
+        }
+        lay.angles.push(`<path d="M${pts.map((p) => r2(p[0]) + ' ' + r2(p[1])).join('L')}" fill="none" stroke="${dc}" stroke-width="${r2(o.thin)}"/>`);
+        const N = o.P(n), mid = pts[8];
+        const tp = add(mid, norm(sub(mid, N)), o.font * 1.1);
+        const rd = Math.round(deg * 10) / 10;
+        lay.angles.push(`<text x="${r2(tp[0])}" y="${r2(tp[1])}" font-size="${r2(o.font * 0.85)}" fill="${dc}" text-anchor="middle" dominant-baseline="central" ` +
+          `stroke="${o.bg}" stroke-width="${r2(o.font * 0.3)}" paint-order="stroke">${rd % 1 ? rd.toFixed(1) : rd}°</text>`);
       });
     }
 
@@ -287,7 +317,7 @@
       lay.sel.push(circle(o.P(ISO.nodePt(doc, o.sel.id)), o.sym * 0.55, 'none', o.selCol, o.thin * 2));
     }
     const grp = (name, arr) => (arr.length ? `<g data-layer="${name}">${arr.join('')}</g>` : '');
-    return grp('DIMENSIONS', lay.dims) + grp('PIPES', lay.pipes) + grp('COMPONENTS', lay.comps.concat(lay.marks)) +
+    return grp('DIMENSIONS', lay.dims) + grp('ANGLES', lay.angles) + grp('PIPES', lay.pipes) + grp('COMPONENTS', lay.comps.concat(lay.marks)) +
       grp('LABELS', lay.labels) + lay.sel.join('');
   };
 
@@ -393,7 +423,8 @@
       const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
       const ox = area.x + area.w / 2, oy = area.y + area.h / 2;
       const P = (pt) => { const w = ISO.iso(pt); return [ox + (w[0] - cx) * k, oy + (w[1] - cy) * k]; };
-      if (doc.settings.paperOnSheet) {
+      // Grid lines (isometric paper) in the export: on unless switched off in Settings → Export
+      if (prof.exportGrid !== false) {
         const gx0 = M, gy0 = M, gx1 = W - M, gy1 = tbY;
         // Paper cell between 5 and 10 mm, aligned with the model grid
         let g = doc.settings.gridStep > 0 ? doc.settings.gridStep : 1000;
@@ -401,9 +432,10 @@
         while (g * k < 5) g *= 2;
         const gp = ISO.isoGridPaths(gx0, gy0, gx1, gy1, k, ox - cx * k, oy - cy * k, g);
         const pc = ISO.paperColors();
+        // a little stronger than on screen, so the fine lines survive printing
         out.push(`<clipPath id="paperClip"><rect x="${gx0}" y="${gy0}" width="${gx1 - gx0}" height="${gy1 - gy0}"/></clipPath>` +
-          `<g data-layer="GRID" clip-path="url(#paperClip)" fill="none"><path d="${gp.minor}" stroke="${pc.minor}" stroke-width="0.12"/>` +
-          `<path d="${gp.major}" stroke="${pc.major}" stroke-width="0.2"/></g>`);
+          `<g data-layer="GRID" clip-path="url(#paperClip)" fill="none"><path d="${gp.minor}" stroke="${mix(pc.major, '#ffffff', 0.3)}" stroke-width="0.15"/>` +
+          `<path d="${gp.major}" stroke="${mix(pc.major, '#000000', 0.12)}" stroke-width="0.25"/></g>`);
       }
       out.push(ISO.renderDrawing(doc, { P, sym: PP.sym, font: PP.font, lw: PP.lw, thin: 0.18, col, bg, dimCol: col, selCol: col, hoverCol: col }));
     }
