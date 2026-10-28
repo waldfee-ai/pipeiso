@@ -1884,6 +1884,7 @@
 
   // ---------- keyboard ----------
   window.addEventListener('keydown', (e) => {
+    if (ISO.view3d && ISO.view3d.isOpen()) return; // the 3D view is only for looking
     const k = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl) {
@@ -2289,6 +2290,7 @@
     exportPdf: () => ISO.exporter.exportPDF(doc).catch((err) => alert(err.message)),
     share: openShare,
     settings: openSettings,
+    view3d: () => { closePopup(); closeFlyout(); ISO.view3d.open(doc, document.documentElement.dataset.theme === 'dark'); },
     install: async () => {
       if (installPrompt) {
         installPrompt.prompt();

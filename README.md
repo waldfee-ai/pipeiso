@@ -35,6 +35,7 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Flanges at pipe ends** (ISO-KF and ISO-K): per pipe no flange, flange at the start, at the end or at both ends (pipe panel or edit / long-press box). The choice for new pipes is set per standard in Settings → Drawing or in the bar above the drawing while the pipe tool is active. Pipes without their own choice follow the automatic rule: off, start and end of each run, or both ends of every pipe section
 - **Double-click** a pipe end to continue drawing from it. Double-click a label to edit it
 - **English and German** interface. Pick the language at the top right; the exported sheet follows it
+- **3D view** (button **3D** next to Settings): the drawing as real tubes with their outside diameter, valves, flanges, reducers, bellows, hoses and supports as simple 3D shapes. View only: drag to turn, wheel or pinch to zoom, right-drag or two fingers to pan; buttons for Iso, Top, Front, Side and Fit. A floor 300 mm below the lowest point with a 500 mm grid; from every elbow a dashed line drops to the floor and ends in a circle. Built with three.js (in `js/vendor`, MIT licence), loaded only when the 3D view is opened and available offline
 - **Light and dark mode**: Settings → Display → Appearance (automatic follows the system). Buttons, active tools and the selection use an orange accent colour. The exported sheet (PDF, DXF, print) is always black on white
 - **Labels** with leader lines (line numbers, elevations, notes) that you can drag into place
 - **Automatic dimensions** for every pipe. One click (or tap) on a dimension moves it to the other side of the pipe; you can also hide it per pipe
@@ -115,6 +116,8 @@ js/logo.js        Company logo: cleans uploaded SVG files
 js/dxf.js         DXF export (AutoCAD R12) of the sheet
 js/export.js      Save/open, PDF and DXF export, print, settings backup
 js/editor.js      Tools, mouse/keyboard handling, properties panel
+js/view3d.js      3D view (three.js)
+js/vendor/        three.js r147 and OrbitControls (MIT, see three-LICENSE.txt)
 ```
 
 Coordinates are stored in millimetres (x = East, y = North, z = Up).

@@ -47,6 +47,7 @@
     <div class="group">
       <button data-cmd="share" class="icon-btn" data-i18n-title="tip.share"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="btn.share">Share</span></button>
       <button data-cmd="settings" class="icon-btn" data-i18n-title="tip.settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="btn.settings">Settings</span></button>
+      <button data-cmd="view3d" class="btn-3d" data-i18n-title="tip.3d">3D</button>
       <button data-cmd="install" id="installBtn" class="icon-btn" data-i18n-title="tip.install" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="btn.install">Install app</span></button>
       <button data-cmd="props" class="mobile-only" data-i18n="btn.props">Properties</button>
       <select id="langSel" class="lang" data-i18n-title="tip.lang" aria-label="Language"></select>
@@ -73,6 +74,25 @@
     </aside>
   </main>
 
+  <!-- 3D view (view only), opened with the 3D button -->
+  <div id="view3d" class="view3d" hidden>
+    <div class="v3-bar">
+      <b class="v3-title" data-i18n="v3.title">3D view</b>
+      <div class="v3-views">
+        <button data-v3="iso">Iso</button>
+        <button data-v3="top" data-i18n="v3.top">Top</button>
+        <button data-v3="front" data-i18n="v3.front">Front</button>
+        <button data-v3="side" data-i18n="v3.side">Side</button>
+        <button data-v3="fit" data-i18n="btn.fit">Fit</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="primary" data-v3="close" data-i18n="v3.close">Back to drawing</button>
+    </div>
+    <div class="v3-canvas" id="v3canvas"></div>
+    <div class="v3-hint" data-i18n="v3.hint"></div>
+    <div class="v3-msg" id="v3msg" hidden></div>
+  </div>
+
   <dialog id="settingsDlg" class="dlg"></dialog>
   <dialog id="shareDlg" class="dlg dlg-small"></dialog>
 
@@ -87,6 +107,7 @@
   <script src="js/logo.js"></script>
   <script src="js/dxf.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/view3d.js"></script>
   <script src="js/editor.js"></script>
 </body>
 </html>

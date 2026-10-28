@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-28.7'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-10-29.1'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
