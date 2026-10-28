@@ -188,6 +188,37 @@
     return { x, y: pos[1] - font * 0.8, w, h };
   };
 
+  /** Chain dimension of the supports on a pipe, in mm from the pipe start: pipe start → support (its width) → … → pipe end.
+   *  Returns { L, segs: [{ a, b, fid, field }] } (field: 'pos' = distance to the support, 'w' = its width), or null. */
+  ISO.supportChain = (doc, pipe) => {
+    const L = ISO.pipeLen(doc, pipe);
+    const sup = doc.fittings.filter((f) => f.pipeId === pipe.id && ISO.FITTINGS[f.type] && ISO.FITTINGS[f.type].support).sort((x, y) => x.t - y.t);
+    if (!sup.length || L < 1) return null;
+    const segs = [];
+    let prev = 0;
+    sup.forEach((f) => {
+      const w = Math.min(ISO.supportWidth(f), L), c = f.t * L;
+      const e1 = Math.max(prev, Math.min(L, c - w / 2)), e2 = Math.max(e1, Math.min(L, c + w / 2));
+      segs.push({ a: prev, b: e1, fid: f.id, field: 'pos' }, { a: e1, b: e2, fid: f.id, field: 'w' });
+      prev = e2;
+    });
+    segs.push({ a: prev, b: L, fid: sup[sup.length - 1].id, field: 'pos' });
+    return { L, segs };
+  };
+  /** Screen geometry of a support chain: the dimension line runs on the side opposite the pipe's length dimension.
+   *  Returns { off2, gap, at(mm) → point on the line, text(seg) → { pos, out } }. */
+  ISO.chainGeom = (pipe, g, sym, font, L) => {
+    const { off, gap } = ISO.dimGeom(pipe, g, sym);
+    const off2 = [-off[0], -off[1]];
+    const at = (mm) => add(lerp(g.A, g.B, mm / L), off2, gap);
+    const text = (seg) => {
+      const a = at(seg.a), b = at(seg.b);
+      const narrow = Math.hypot(b[0] - a[0], b[1] - a[1]) < font * 2.2; // too short for its number: put the number further out
+      return { pos: add(lerp(a, b, 0.5), off2, font * (narrow ? 2.1 : 0.85)), narrow };
+    };
+    return { off2, gap, at, text };
+  };
+
   /** Where a pipe's dimension line sits on screen: A2-B2 is the line, off the side it is on (flipped with pipe.dimFlip). */
   ISO.dimGeom = (pipe, g, sym) => {
     const off = pipe.dimFlip ? [-g.o[0], -g.o[1]] : g.o;
@@ -249,27 +280,24 @@
         out.push(`<text x="${r2(mid[0])}" y="${r2(mid[1])}" transform="rotate(${ang} ${r2(mid[0])} ${r2(mid[1])})" ` +
           `font-size="${r2(o.font)}" fill="${dc}" text-anchor="middle" dominant-baseline="central">${Math.round(L)}</text>`);
 
-        // Supports on this pipe: chain dimension on the other side (pipe start → support → … → pipe end)
-        const at = doc.fittings.filter((f) => f.pipeId === pipe.id && ISO.FITTINGS[f.type] && ISO.FITTINGS[f.type].support)
-          .map((f) => f.t).sort((x, y) => x - y);
-        if (!at.length) return;
-        const off2 = [-off[0], -off[1]], dc2 = o.dimCol || o.col;
-        const ts = [0].concat(at, [1]);
-        const P2 = ts.map((t) => add(lerp(g.A, g.B, t), off2, gap));
-        ts.forEach((t, i) => {
-          const base = lerp(g.A, g.B, t);
-          out.push(line(add(base, off2, o.sym * (i === 0 || i === ts.length - 1 ? 0.9 : 1.6)), add(base, off2, gap + o.sym * 0.6), dc2, tw));
+        // Supports on this pipe: chain dimension on the other side (pipe start → support width → … → pipe end)
+        const ch = ISO.supportChain(doc, pipe);
+        if (!ch) return;
+        const cg = ISO.chainGeom(pipe, g, o.sym, o.font, L), dc2 = o.dimCol || o.col;
+        const marks = [0].concat(ch.segs.map((sg) => sg.b));
+        marks.forEach((mm, i) => {
+          const base = lerp(g.A, g.B, mm / L);
+          out.push(line(add(base, cg.off2, o.sym * (i === 0 || i === marks.length - 1 ? 0.9 : 1.6)), add(base, cg.off2, gap + o.sym * 0.6), dc2, tw));
         });
-        const tk2 = norm(add(g.d, off2));
-        P2.forEach((q) => out.push(line(add(q, tk2, -o.sym * 0.45), add(q, tk2, o.sym * 0.45), dc2, tw * 1.6)));
-        for (let i = 0; i + 1 < ts.length; i++) {
-          const seg = (ts[i + 1] - ts[i]) * L;
-          if (seg < 0.5) continue;
-          out.push(line(P2[i], P2[i + 1], dc2, tw));
-          const m2 = add(lerp(P2[i], P2[i + 1], 0.5), off2, o.font * 0.85);
+        const tk2 = norm(add(g.d, cg.off2));
+        marks.forEach((mm) => { const q = cg.at(mm); out.push(line(add(q, tk2, -o.sym * 0.45), add(q, tk2, o.sym * 0.45), dc2, tw * 1.6)); });
+        ch.segs.forEach((sg) => {
+          if (sg.b - sg.a < 0.5) return;
+          out.push(line(cg.at(sg.a), cg.at(sg.b), dc2, tw));
+          const tx = cg.text(sg), m2 = tx.pos;
           out.push(`<text x="${r2(m2[0])}" y="${r2(m2[1])}" transform="rotate(${ang} ${r2(m2[0])} ${r2(m2[1])})" ` +
-            `font-size="${r2(o.font)}" fill="${dc2}" text-anchor="middle" dominant-baseline="central">${Math.round(seg)}</text>`);
-        }
+            `font-size="${r2(o.font * (tx.narrow ? 0.85 : 1))}" fill="${dc2}" text-anchor="middle" dominant-baseline="central">${Math.round(sg.b - sg.a)}</text>`);
+        });
       });
     }
 
@@ -335,21 +363,18 @@
       });
     }
 
-    // Automatic flanges at section ends
-    const af = doc.settings.autoFlange;
-    if (af === 'ends' || af === 'all') {
-      const deg = {};
-      doc.pipes.forEach((p) => { deg[p.a] = (deg[p.a] || 0) + 1; deg[p.b] = (deg[p.b] || 0) + 1; });
+    // Flanges at pipe ends: chosen per pipe (none / start / end / both), else the automatic rule in Settings
+    {
+      const deg = ISO.nodeDegrees(doc);
       doc.pipes.forEach((pipe) => {
         if (pipe.comp) return; // components bring their own flanges
         const g = geoms.get(pipe.id);
         const screenLen = Math.hypot(g.B[0] - g.A[0], g.B[1] - g.A[1]);
-        [[pipe.a, g.A, g.d], [pipe.b, g.B, [-g.d[0], -g.d[1]]]].forEach(([nid, E, dir]) => {
-          // one flange per pipe end: at open ends right at the end, at joints just before the elbow / tee
-          let off = null;
-          if (deg[nid] === 1) off = 0.12;
-          else if (af === 'all' && screenLen > o.sym * 3) off = 0.9;
-          if (off === null) return;
+        const ends = ISO.pipeFlanges(doc, pipe, deg);
+        [[pipe.a, g.A, g.d], [pipe.b, g.B, [-g.d[0], -g.d[1]]]].forEach(([nid, E, dir], i) => {
+          if (!ends[i]) return;
+          // at open ends right at the end, at joints just before the elbow / tee (closer on very short pipes)
+          const off = deg[nid] === 1 ? 0.12 : Math.min(0.9, (screenLen / o.sym) * 0.3);
           const q = add(E, dir, o.sym * off);
           out.push(line(add(q, g.p, o.sym * 0.78), add(q, g.p, -o.sym * 0.78), o.col, o.thin * 2.2));
         });
@@ -442,6 +467,7 @@
     return v.toString(16).padStart(2, '0');
   }).join('');
   ISO.isHexColor = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+  ISO.mixColor = mix;
   /** Colours of the isometric paper: the line colour chosen in Settings, or the default blue. */
   ISO.paperColors = () => {
     const c = ISO.profile ? ISO.profile.get().gridColor : '';
@@ -460,33 +486,102 @@
       `<text x="${r2(tip[0] + font * 0.5)}" y="${r2(tip[1] - font * 0.3)}" font-size="${r2(font)}" font-weight="700" fill="${col}">N</text>`;
   };
 
-  /** Symbols used in a drawing, for the legend in the notes field of the sheet (palette order).
-   *  Each item: { label, count?, std? | type? | kind? } – std = pipe standard, type = component, kind = other mark. */
-  ISO.legendItems = (doc) => {
-    const T = ISO.t, items = [];
+  /**
+   * Bill of materials together with the legend, for the notes field of the sheet.
+   * Rows: { icon: { std | type | kind } | null, label, size, qty, pos: true when it is a part (numbered), total: true for sums }.
+   * Order: pipes (length per size), elbows / tees, components and fittings in palette order (pipe-end flanges and the
+   * flange total after the flanges), welds, then marks that are only explained (flow arrow, angle marks; quantity "–").
+   */
+  ISO.bomRows = (doc) => {
+    const T = ISO.t, rows = [];
+    const de = ISO.getLang && ISO.getLang() === 'de';
+    const metres = (mm) => { const s = (mm / 1000).toFixed(2); return (de ? s.replace('.', ',') : s) + ' m'; };
+    const stdName = (k) => (ISO.STANDARDS[k] ? ISO.STANDARDS[k].name : '');
+    const dnTxt = (std, dn) => `DN${dn} ${stdName(std)}`.trim();
+    const sortBySize = (a, b) => Object.keys(ISO.STANDARDS).indexOf(a.std) - Object.keys(ISO.STANDARDS).indexOf(b.std) || a.dn - b.dn;
+    /** Count things by a key; returns [{ key, n, first }] in order of first appearance. */
+    const tally = (arr, keyFn) => {
+      const m = new Map();
+      arr.forEach((x) => { const k = keyFn(x); const e = m.get(k); if (e) e.n++; else m.set(k, { key: k, n: 1, first: x }); });
+      return [...m.values()];
+    };
+    const live = new Set(doc.pipes.map((p) => p.id));
+    const pipeOf = (f) => ISO.byId(doc.pipes, f.pipeId);
+
+    // Pipes: total length per standard and size
     const plain = doc.pipes.filter((p) => !p.comp);
-    Object.keys(ISO.STANDARDS).forEach((k) => {
-      if (plain.some((p) => p.std === k)) items.push({ label: `${T('sb.pipe')} ${ISO.STANDARDS[k].name}`, std: k });
+    const lens = new Map();
+    plain.forEach((p) => {
+      const k = p.std + ':' + p.dn;
+      const e = lens.get(k) || { std: p.std, dn: p.dn, mm: 0 };
+      e.mm += ISO.pipeLen(doc, p);
+      lens.set(k, e);
     });
-    const live = new Set(doc.pipes.map((p) => p.id)), count = {};
-    doc.pipes.forEach((p) => { if (p.comp) count[p.comp.type] = (count[p.comp.type] || 0) + 1; });
-    doc.fittings.forEach((f) => { if (live.has(f.pipeId)) count[f.type] = (count[f.type] || 0) + 1; });
-    ISO.CATEGORIES.flatMap((c) => (c.groups ? c.groups.flatMap((g) => g.items) : c.items)).forEach((type) => {
-      if (count[type]) items.push({ label: ISO.fitName(type), count: count[type], type });
+    const pipeRows = [...lens.values()].sort(sortBySize);
+    pipeRows.forEach((e) => rows.push({ icon: { std: e.std }, label: T('sb.pipe'), size: dnTxt(e.std, e.dn), qty: metres(e.mm), pos: true }));
+    if (pipeRows.length > 1) rows.push({ icon: null, label: T('bom.pipeTotal'), size: '', qty: metres(pipeRows.reduce((s, e) => s + e.mm, 0)), total: true });
+
+    // Elbows (bend angle = 180° − angle between the pipes), tees and crosses
+    const sizeAt = (ps) => {
+      const s = [...new Set(ps.map((p) => p.std + ':' + p.dn))].map((k) => { const [std, dn] = k.split(':'); return { std, dn: +dn }; }).sort(sortBySize).reverse();
+      return s.length === 1 ? dnTxt(s[0].std, s[0].dn) : s.map((x) => 'DN' + x.dn).join(' × ');
+    };
+    const bends = ISO.elbowAngles(doc).map((a) => ({ bend: Math.round((180 - a.deg) * 10) / 10, size: sizeAt(ISO.pipesAt(doc, a.id)) }));
+    tally(bends, (b) => b.bend + '|' + b.size).sort((x, y) => y.first.bend - x.first.bend).forEach((e) =>
+      rows.push({ icon: { kind: 'elbow' }, label: T('bom.elbow', { a: e.first.bend }), size: e.first.size, qty: String(e.n), pos: true }));
+    const deg = ISO.nodeDegrees(doc);
+    const junctions = Object.keys(doc.nodes).filter((id) => deg[id] >= 3).map((id) => ({ n: deg[id], size: sizeAt(ISO.pipesAt(doc, id)) }));
+    tally(junctions, (j) => (j.n === 3 ? 'tee' : 'cross') + '|' + j.size).forEach((e) =>
+      rows.push({ icon: { kind: e.first.n === 3 ? 'tee' : 'cross' }, label: T(e.first.n === 3 ? 'bom.tee' : 'bom.cross'), size: e.first.size, qty: String(e.n), pos: true }));
+
+    // Components in the line and fittings on the pipes, in palette order, per size
+    let flanges = 0;
+    const FLANGE_PER = { flange: 2, flange1: 1, blind: 1 }; // a flange pair is two flanges
+    const markOnly = { flow: true }; // symbols that are explained but not ordered
+    ISO.CATEGORIES.forEach((cat) => {
+      const types = cat.groups ? cat.groups.flatMap((g) => g.items) : cat.items;
+      types.forEach((type) => {
+        if (ISO.FITTINGS[type] && ISO.FITTINGS[type].support) {
+          // supports: on a pipe, or added into the line at a pipe end – counted together per size and width
+          const all = doc.pipes.filter((p) => p.comp && p.comp.type === type).map((p) => ({ p, w: ISO.pipeLen(doc, p) }))
+            .concat(doc.fittings.filter((f) => f.type === type && live.has(f.pipeId)).map((f) => ({ p: pipeOf(f), w: ISO.supportWidth(f) })));
+          tally(all, (x) => `${dnTxt(x.p.std, x.p.dn)}, ${Math.round(x.w)} mm`).forEach((e) =>
+            rows.push({ icon: { type }, label: ISO.fitName(type), size: e.key, qty: String(e.n), pos: true }));
+          return;
+        }
+        const comps = doc.pipes.filter((p) => p.comp && p.comp.type === type);
+        tally(comps, (p) => ISO.compSizeText(p) + ' ' + stdName(p.std)).forEach((e) =>
+          rows.push({ icon: { type }, label: ISO.fitName(type), size: e.key.trim(), qty: String(e.n), pos: true }));
+        const fits = doc.fittings.filter((f) => f.type === type && live.has(f.pipeId));
+        if (FLANGE_PER[type]) flanges += fits.length * FLANGE_PER[type];
+        tally(fits, (f) => { const p = pipeOf(f); const w = ISO.FITTINGS[type].support ? `, ${Math.round(ISO.supportWidth(f))} mm` : ''; return dnTxt(p.std, p.dn) + w; }).forEach((e) =>
+          rows.push({ icon: { type }, label: ISO.fitName(type), size: markOnly[type] ? '' : e.key, qty: markOnly[type] ? '–' : String(e.n), pos: !markOnly[type] }));
+      });
+      if (cat.id === 'flanges') {
+        // flanges at pipe ends (chosen per pipe or by the automatic rule)
+        const ends = [];
+        plain.forEach((p) => ISO.pipeFlanges(doc, p, deg).forEach((on) => { if (on) ends.push(p); }));
+        flanges += ends.length;
+        tally(ends, (p) => p.std + ':' + p.dn).map((e) => e.first).sort(sortBySize).forEach((p) => {
+          const n = ends.filter((x) => x.std === p.std && x.dn === p.dn).length;
+          rows.push({ icon: { kind: 'pipeFlange' }, label: T('bom.endFlange'), size: dnTxt(p.std, p.dn), qty: String(n), pos: true });
+        });
+        if (flanges) rows.push({ icon: null, label: T('bom.flTotal'), size: '', qty: String(flanges), total: true });
+      }
     });
-    const deg = {};
-    doc.pipes.forEach((p) => { deg[p.a] = (deg[p.a] || 0) + 1; deg[p.b] = (deg[p.b] || 0) + 1; });
-    const af = doc.settings.autoFlange;
-    if ((af === 'ends' && plain.some((p) => deg[p.a] === 1 || deg[p.b] === 1)) || (af === 'all' && plain.length)) items.push({ label: T('lg.autoFlange'), kind: 'autoFlange' });
-    if (doc.settings.showWelds && Object.keys(doc.nodes).some((id) => { const ps = ISO.pipesAt(doc, id); return ps.length >= 2 && !ps.some((x) => x.comp); })) {
-      items.push({ label: T('lg.elbowWeld'), kind: 'elbowWeld' });
+
+    // Welds at elbows and tees (when shown)
+    if (doc.settings.showWelds) {
+      const n = Object.keys(doc.nodes).reduce((s, id) => { const ps = ISO.pipesAt(doc, id); return s + (ps.length >= 2 && !ps.some((x) => x.comp) ? ps.length : 0); }, 0);
+      if (n) rows.push({ icon: { kind: 'elbowWeld' }, label: T('lg.elbowWeld'), size: '', qty: String(n), pos: true });
     }
+    // Marks that are only explained
     if (doc.settings.showAngles !== false) {
       const ang = ISO.elbowAngles(doc);
-      if (ang.some((a) => ISO.isRightAngle(a.deg))) items.push({ label: T('lg.right'), kind: 'right' });
-      if (ang.some((a) => !ISO.isRightAngle(a.deg))) items.push({ label: T('lg.angle'), kind: 'angle' });
+      if (ang.some((a) => ISO.isRightAngle(a.deg))) rows.push({ icon: { kind: 'right' }, label: T('lg.right'), size: '', qty: '–' });
+      if (ang.some((a) => !ISO.isRightAngle(a.deg))) rows.push({ icon: { kind: 'angle' }, label: T('lg.angle'), size: '', qty: '–' });
     }
-    return items;
+    return rows;
   };
 
   /** Small picture of a legend item, centred on c; s = symbol size (mm). */
@@ -495,7 +590,14 @@
     const pipe = (w) => line([c[0] - half, c[1]], [c[0] + half, c[1]], col, w);
     if (it.std) return pipe(pipeW * ISO.STANDARDS[it.std].lw);
     if (it.type) return pipe(pipeW * 0.55) + ISO.drawFitting(it.type, c, [1, 0], [0, -1], [0, 1], s, { col, bg, thin: 0.12, lw: pipeW * 0.55 }, false, 1);
-    if (it.kind === 'autoFlange') return pipe(pipeW * 0.55) + line([c[0], c[1] - s * 0.78], [c[0], c[1] + s * 0.78], col, 0.4);
+    if (it.kind === 'autoFlange' || it.kind === 'pipeFlange') return pipe(pipeW * 0.55) + line([c[0] + s * 0.6, c[1] - s * 0.78], [c[0] + s * 0.6, c[1] + s * 0.78], col, 0.4);
+    if (it.kind === 'tee' || it.kind === 'cross') {
+      return pipe(pipeW * 0.7) + line([c[0], c[1]], [c[0], c[1] - s * 1.2], col, pipeW * 0.7) + (it.kind === 'cross' ? line([c[0], c[1]], [c[0], c[1] + s * 1.2], col, pipeW * 0.7) : '');
+    }
+    if (it.kind === 'elbow') {
+      const k0 = [c[0] - s * 0.6, c[1] + s * 0.8];
+      return `<polyline points="${r2(k0[0] + s * 2)},${r2(k0[1])} ${r2(k0[0])},${r2(k0[1])} ${r2(k0[0])},${r2(k0[1] - s * 1.7)}" fill="none" stroke="${col}" stroke-width="${r2(pipeW * 0.7)}" stroke-linejoin="round"/>`;
+    }
     // corner of two pipes for welds and angles
     const k = [c[0] - s * 0.5, c[1] + s * 0.75];
     const a2 = it.kind === 'angle' ? (135 * Math.PI) / 180 : Math.PI / 2;
@@ -604,34 +706,64 @@
     out.push(cell(tbX + c2, y, q, rh, T('date'), t.date) + cell(tbX + c2 + q, y, q, rh, T('units'), 'mm'));
     out.push(cell(tbX + c2, y + rh, q, rh, T('rev'), t.rev) + cell(tbX + c2 + q, y + rh, q, rh, T('sheet'), `${t.sheet} · ${paper}`));
 
-    // Notes box: your notes, and a legend of the symbols used in the drawing (Settings → Export)
+    // Notes box: your notes, and the parts list (BOM) with the legend of the symbols used (Settings → Export)
     const nx = M, nw = tbX - M - 6;
     const nfs = PP.notesFs;
-    const items = prof.exportLegend !== false ? ISO.legendItems(doc) : [];
+    const bom = prof.exportLegend !== false ? ISO.bomRows(doc) : [];
     const hasNotes = !!String(t.notes || '').trim();
-    const notesW = items.length ? (hasNotes ? nw * 0.4 : 0) : nw;
+    const notesW = bom.length ? (hasNotes ? nw * 0.3 : 0) : nw;
     out.push(`<rect x="${nx}" y="${tbY}" width="${nw}" height="${tbH}" fill="none" stroke="${col}" stroke-width="0.3"/>`);
     if (notesW > 0) out.push(`<text x="${nx + 2}" y="${tbY + 4.5}" font-size="${r2(nfs + 0.2)}" font-weight="700" fill="${col}">${esc(ISO.t('sh.notes'))}</text>`);
-    if (items.length) {
+    if (bom.length) {
       const lx = nx + notesW, lw2 = nw - notesW;
       if (notesW > 0) out.push(line([lx, tbY], [lx, tbY + tbH], col, 0.3));
-      out.push(`<text x="${r2(lx + 2)}" y="${tbY + 4.5}" font-size="${r2(nfs + 0.2)}" font-weight="700" fill="${col}">${esc(ISO.t('sh.legend'))}</text>`);
-      // rows and columns: as many columns as needed; rows get a little tighter before columns get too narrow
-      const top = tbY + 7, avail = tbH - 8.5, minCol = paper === 'A4' ? 30 : 36;
-      let rowH = paper === 'A4' ? 4.6 : 5.4, rows, cols;
-      const fit = () => { rows = Math.max(1, Math.floor(avail / rowH)); cols = Math.ceil(items.length / rows); };
+      out.push(`<text x="${r2(lx + 2)}" y="${tbY + 4.5}" font-size="${r2(nfs + 0.2)}" font-weight="700" fill="${col}">${esc(ISO.t('sh.bom'))}</text>`);
+      // Table: Pos | Symbol | Item | Size | Qty. Several tables side by side when the rows don't fit;
+      // rows get tighter before a table gets too narrow.
+      const top = tbY + 6.2, avail = tbY + tbH - top - 0.8;
+      const minColW = paper === 'A4' ? 62 : 82, maxCols = Math.max(1, Math.floor((lw2 - 2) / minColW));
+      let rowH = paper === 'A4' ? 3.6 : 4.2, per, cols;
+      const fit = () => { per = Math.max(1, Math.floor(avail / rowH) - 1); cols = Math.ceil(bom.length / per); };
       fit();
-      while (cols > 1 && lw2 / cols < minCol && rowH > 3.4) { rowH -= 0.3; fit(); }
-      const colW = (lw2 - 2) / cols, s = rowH * 0.36, iconW = s * 3.6;
-      const shown = items.slice(0, rows * cols);
-      shown.forEach((it, i) => {
-        const x = lx + 2 + Math.floor(i / rows) * colW, yc = top + (i % rows) * rowH + rowH / 2;
-        let label = it.count > 1 ? `${it.label} (${it.count}×)` : it.label;
-        if (i === shown.length - 1 && shown.length < items.length) label = '…';
-        const fs = Math.max(1.3, Math.min(nfs * 0.92, (colW - iconW - 2.5) / Math.max(1, label.length * 0.53)));
-        if (label !== '…') out.push(legendIcon(it, [x + iconW / 2, yc], s, col, bg, PP.lw));
-        out.push(`<text x="${r2(x + iconW + 1.2)}" y="${r2(yc)}" font-size="${r2(fs)}" fill="${col}" dominant-baseline="central">${esc(label)}</text>`);
-      });
+      while (cols > maxCols && rowH > 2.8) { rowH -= 0.2; fit(); }
+      cols = Math.min(cols, maxCols);
+      const tw = (lw2 - 2) / cols, fs0 = Math.min(nfs * 0.85, rowH * 0.56);
+      const CW = [0.08, 0.12, 0.42, 0.22, 0.16]; // column widths (share of a table)
+      const cellText = (x, w, yc, str, opts = {}) => {
+        const s = String(str);
+        if (!s) return '';
+        const fs = Math.max(1.1, Math.min(fs0, (w - 1) / Math.max(1, s.length * 0.53)));
+        const ax = opts.end ? x + w - 0.7 : x + 0.7;
+        return `<text x="${r2(ax)}" y="${r2(yc)}" font-size="${r2(fs)}" fill="${col}" dominant-baseline="central"${opts.end ? ' text-anchor="end"' : ''}${opts.bold ? ' font-weight="700"' : ''}>${esc(s)}</text>`;
+      };
+      let posNo = 0;
+      const numbered = bom.map((r) => (r.pos ? ++posNo : ''));
+      for (let c = 0; c < cols; c++) {
+        const x0 = lx + 1 + c * tw, part = bom.slice(c * per, (c + 1) * per);
+        if (!part.length) break;
+        const xs = [x0];
+        CW.forEach((k) => xs.push(xs[xs.length - 1] + k * tw));
+        const yEnd = top + rowH * (part.length + 1);
+        // header
+        const heads = ['bom.pos', 'bom.sym', 'bom.item', 'bom.size', 'bom.qty'].map((k) => ISO.t(k));
+        heads.forEach((hd, i) => out.push(cellText(xs[i], xs[i + 1] - xs[i], top + rowH / 2, hd, { bold: true, end: i === 4 })));
+        out.push(line([x0, top + rowH], [x0 + tw - 1, top + rowH], col, 0.25));
+        // rows
+        part.forEach((r, i) => {
+          const idx = c * per + i, yc = top + rowH * (i + 1.5);
+          const last = c === cols - 1 && i === part.length - 1 && (c + 1) * per < bom.length;
+          if (last) { out.push(cellText(xs[2], xs[3] - xs[2], yc, '…')); return; }
+          out.push(cellText(xs[0], xs[1] - xs[0], yc, numbered[idx]));
+          if (r.icon) out.push(legendIcon(r.icon, [(xs[1] + xs[2]) / 2, yc], rowH * 0.3, col, bg, PP.lw * 0.9));
+          out.push(cellText(xs[2], xs[3] - xs[2], yc, r.label, { bold: r.total }));
+          out.push(cellText(xs[3], xs[4] - xs[3], yc, r.size));
+          out.push(cellText(xs[4], xs[5] - xs[4], yc, r.qty, { end: true, bold: r.total }));
+          if (i < part.length - 1) out.push(line([x0, top + rowH * (i + 2)], [x0 + tw - 1, top + rowH * (i + 2)], col, 0.08));
+        });
+        // column lines
+        xs.slice(1, 5).forEach((xx) => out.push(line([xx, top], [xx, yEnd], col, 0.1)));
+        if (c > 0) out.push(line([x0 - 0.5, top], [x0 - 0.5, tbY + tbH], col, 0.25));
+      }
     }
     const wrap = (str, n) => {
       const res = [];

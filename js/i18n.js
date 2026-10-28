@@ -41,7 +41,7 @@
 
     'st.select': 'Click to select · click a dimension to move it to the other side · X / C flip a selected component · double-click a pipe end to continue drawing · drag fittings and labels to move them · <b>Del</b> deletes · wheel zooms · middle-drag or Space+drag pans',
     'st.pipeStart': 'Click or tap a start point: empty space, an existing point (snaps), or on a pipe (makes a tee)',
-    'st.pipeRun': '<b>{dir} {len} mm</b> — click to place, or type a length and press <b>Enter</b> · <b>Esc</b>, right-click or double-click ends the run',
+    'st.pipeRun': '<b>{dir} {len} mm</b> — click to place, or type a length and press <b>Enter</b> · <b>Esc</b>, right-click or a double click / double tap ends the run',
     'st.pipeRoute': '<b>Connect to point with {n} pipes</b> (elbows added automatically) — click to connect',
     'st.snap': ' · snap: <b>{s}</b>',
     'st.plane': ' · <b>{p}</b> (Tab switches)',
@@ -57,7 +57,7 @@
     'sb.paperOnSheet': 'Show grid lines in the export (PDF, DXF and print)',
     'sb.defaultSize': 'Default pipe size', 'sb.showDims': 'Show dimensions', 'sb.showWelds': 'Show welds at elbows and tees',
     'sb.angles': 'Pipe angles', 'ang.90': '90° only', 'ang.45': '45° and 90°',
-    'sb.autoFlange': 'Flanges at section ends', 'af.off': 'Off', 'af.ends': 'Start and end of each run', 'af.all': 'Both ends of every pipe section',
+    'sb.autoFlange': 'Automatic flanges (pipes without their own choice)', 'af.off': 'Off', 'af.ends': 'Start and end of each run', 'af.all': 'Both ends of every pipe section',
     'sb.help': 'Help',
     'sb.pipe': 'Pipe', 'sb.direction': 'Direction', 'sb.from': 'From', 'sb.to': 'To', 'sb.oblique': 'oblique',
     'sb.length': 'Length (mm)', 'sb.size': 'Pipe size', 'sb.showDim': 'Show dimension', 'sb.dimFlip': 'Dimension on other side',
@@ -99,7 +99,7 @@
     'sb.component': 'Component', 'sb.ftf': 'Face-to-face length (mm)', 'sb.dnMain': 'Size', 'sb.dnSmall': 'Small end',
     'sb.showCompSizes': 'Show sizes at valves, reducers and bellows',
     'st.insert': 'Click or tap on a pipe to add a <b>{name}</b> ({len} mm). The pipe gets longer by that length.',
-    'bar.len': 'Length of new {name} (mm)', 'bar.auto': 'auto',
+    'bar.len': 'Length of new {name} (mm)', 'bar.auto': 'auto', 'bar.width': 'Width of new {name} (mm)',
     'err.insertLoop': 'Can\'t add it here: this pipe is part of a closed loop.', 'err.insertComp': 'Components can only be added to a pipe.',
     'tag.insert': '+{len} mm',
     'btn.pdf': 'PDF', 'tip.pdf': 'Download the sheet as a PDF file (paper size in Settings)',
@@ -134,11 +134,19 @@
     'set.lenReset': 'Reset this component to typical lengths', 'set.redStep': 'Small end of new reducers',
     'set.red1': 'One size smaller', 'set.red2': 'Two sizes smaller',
     'prj.ph': 'Project name', 'set.version': 'Version',
+    'set.theme': 'Appearance', 'th.auto': 'Automatic (like the system)', 'th.light': 'Light', 'th.dark': 'Dark',
+    'st.support': 'Click or tap on a pipe to place a <b>{name}</b> ({w} mm wide). Near a pipe end it is added into the line there, and the line gets longer by its width.',
+    'set.drawingNote': 'All settings belong to the app, not to one drawing: they are kept in this browser and apply to new drawings and to drawings you open.',
     'fit.clamp': 'Pipe clamp', 'fits.clamp': 'Clamp', 'fit.weldclamp': 'Weld-on pipe clamp', 'fits.weldclamp': 'Weld-on',
     'cat.supports': 'Supports', 'cats.supports': 'Supports',
-    'sb.posMm': 'Distance from pipe start (mm)', 'sb.toEnd': 'Distance to the other end of the pipe: {n} mm',
-    'err.posMm': 'Between 1 and {n} mm',
-    'sh.legend': 'LEGEND', 'set.exportLegend': 'Show a legend of the symbols used in the notes field',
+    'sb.posMm': 'Distance from pipe start to the support (mm)', 'sb.toEnd': 'Distance from the support to the other end of the pipe: {n} mm',
+    'err.posMm': 'Between 0 and {n} mm', 'sb.supW': 'Width on the pipe (mm)', 'set.supW': 'Width of {name} (mm)',
+    'sb.flanges': 'Flanges', 'fl.auto': 'Automatic (rule in Settings)', 'fl.none': 'No flange', 'fl.start': 'Flange at start',
+    'fl.end': 'Flange at end', 'fl.both': 'Flanges at both ends', 'bar.flanges': 'Flanges of new {std} pipes', 'set.newFl': 'Flanges of new {std} pipes',
+    'sh.bom': 'PARTS LIST / LEGEND', 'bom.pos': 'Pos.', 'bom.sym': 'Symbol', 'bom.item': 'Item', 'bom.size': 'Size', 'bom.qty': 'Qty',
+    'bom.pipeTotal': 'Pipe length total', 'bom.elbow': 'Elbow {a}°', 'bom.tee': 'Tee', 'bom.cross': 'Cross',
+    'bom.endFlange': 'Flange (pipe end)', 'bom.flTotal': 'Flanges total',
+    'sh.legend': 'LEGEND', 'set.exportLegend': 'Show the parts list (BOM) with the legend of the symbols in the notes field',
     'lg.autoFlange': 'Flange (drawn automatically)', 'lg.elbowWeld': 'Weld at elbow / tee',
     'lg.right': 'Right angle (90°) between pipes', 'lg.angle': 'Angle between pipes',
     'sb.showAngles': 'Show the angle between the pipes at elbows',
@@ -159,7 +167,7 @@
     'help': `<p><b>Quick start</b></p>
       <p>1. Pick <b>KF pipe</b> or <b>ISO-K pipe</b> and click or tap a start point. Existing points snap (green ring).</p>
       <p>2. Move in the direction you want and click or tap, or type a length (mm) and press <kbd>Enter</kbd>. Each point continues the run and makes an elbow.</p>
-      <p>3. <kbd>Esc</kbd>, right-click, double-click or <b>Finish run</b> ends the run. Start on a pipe to make a tee. Double-click a pipe end to continue it.</p>
+      <p>3. <kbd>Esc</kbd>, right-click, a double click / double tap or <b>Finish run</b> ends the run. Start on a pipe to make a tee. Double-click a pipe end to continue it.</p>
       <p>4. Use <b>Edit</b> <kbd>E</kbd> on a pipe to change its length, angle or nominal size, or to add a bend.</p>
       <p>5. Pick a component and click on a pipe. Valves, reducers, bellows and hoses are added into the pipe with their own length (the pipe gets longer); set the length in the bar above the drawing. Components face the side and end you clicked nearest to. <kbd>X</kbd> flips the side, <kbd>C</kbd> the direction.</p>
       <p>6. For 45° pipes, set <b>Pipe angles</b> to 45° and 90°, then switch the plane with <kbd>Tab</kbd>.</p>
@@ -209,7 +217,7 @@
 
     'st.select': 'Klicken zum Auswählen · Klick auf eine Bemaßung legt sie auf die andere Seite · X / C kehren ein gewähltes Bauteil um · Doppelklick auf ein Rohrende zeichnet weiter · Armaturen und Texte per Ziehen verschieben · <b>Entf</b> löscht · Mausrad zoomt · mittlere Maustaste oder Leertaste+Ziehen verschiebt',
     'st.pipeStart': 'Startpunkt klicken oder antippen: freie Fläche, vorhandener Punkt (fängt) oder auf ein Rohr (ergibt ein T-Stück)',
-    'st.pipeRun': '<b>{dir} {len} mm</b> — klicken zum Setzen oder Länge eintippen und <b>Enter</b> · <b>Esc</b>, Rechtsklick oder Doppelklick beendet den Strang',
+    'st.pipeRun': '<b>{dir} {len} mm</b> — klicken zum Setzen oder Länge eintippen und <b>Enter</b> · <b>Esc</b>, Rechtsklick oder Doppelklick / Doppeltippen beendet den Strang',
     'st.pipeRoute': '<b>Mit {n} Rohren zum Punkt verbinden</b> (Bögen werden automatisch gesetzt) — klicken zum Verbinden',
     'st.snap': ' · Fang: <b>{s}</b>',
     'st.plane': ' · <b>{p}</b> (Tab wechselt)',
@@ -225,7 +233,7 @@
     'sb.paperOnSheet': 'Rasterlinien im Export anzeigen (PDF, DXF und Druck)',
     'sb.defaultSize': 'Standard-Nennweite', 'sb.showDims': 'Bemaßung anzeigen', 'sb.showWelds': 'Schweißnähte an Bögen und T-Stücken anzeigen',
     'sb.angles': 'Rohrwinkel', 'ang.90': 'nur 90°', 'ang.45': '45° und 90°',
-    'sb.autoFlange': 'Flansche an Abschnittsenden', 'af.off': 'Aus', 'af.ends': 'Anfang und Ende jedes Strangs', 'af.all': 'Beide Enden jedes Rohrabschnitts',
+    'sb.autoFlange': 'Automatische Flansche (Rohre ohne eigene Auswahl)', 'af.off': 'Aus', 'af.ends': 'Anfang und Ende jedes Strangs', 'af.all': 'Beide Enden jedes Rohrabschnitts',
     'sb.help': 'Hilfe',
     'sb.pipe': 'Rohr', 'sb.direction': 'Richtung', 'sb.from': 'Von', 'sb.to': 'Bis', 'sb.oblique': 'schräg',
     'sb.length': 'Länge (mm)', 'sb.size': 'Nennweite', 'sb.showDim': 'Bemaßung anzeigen', 'sb.dimFlip': 'Bemaßung auf der anderen Seite',
@@ -268,7 +276,7 @@
     'sb.component': 'Bauteil', 'sb.ftf': 'Baulänge (mm)', 'sb.dnMain': 'Nennweite', 'sb.dnSmall': 'Kleines Ende',
     'sb.showCompSizes': 'Nennweiten an Armaturen, Reduzierungen und Kompensatoren anzeigen',
     'st.insert': 'Auf ein Rohr klicken oder tippen, um <b>{name}</b> ({len} mm) einzufügen. Das Rohr wird um diese Länge länger.',
-    'bar.len': 'Baulänge {name} (mm)', 'bar.auto': 'auto',
+    'bar.len': 'Baulänge {name} (mm)', 'bar.auto': 'auto', 'bar.width': 'Breite der neuen {name} (mm)',
     'err.insertLoop': 'Hier nicht möglich: Dieses Rohr ist Teil eines geschlossenen Rings.', 'err.insertComp': 'Bauteile können nur in ein Rohr eingefügt werden.',
     'tag.insert': '+{len} mm',
     'btn.pdf': 'PDF', 'tip.pdf': 'Blatt als PDF-Datei herunterladen (Papierformat in den Einstellungen)',
@@ -303,11 +311,19 @@
     'set.lenReset': 'Dieses Bauteil auf typische Längen zurücksetzen', 'set.redStep': 'Kleines Ende neuer Reduzierungen',
     'set.red1': 'Eine Nennweite kleiner', 'set.red2': 'Zwei Nennweiten kleiner',
     'prj.ph': 'Projektname', 'set.version': 'Version',
+    'set.theme': 'Darstellung', 'th.auto': 'Automatisch (wie das System)', 'th.light': 'Hell', 'th.dark': 'Dunkel',
+    'st.support': 'Auf ein Rohr klicken oder tippen, um eine <b>{name}</b> ({w} mm breit) zu setzen. Nahe einem Rohrende wird sie dort in die Leitung eingefügt; die Leitung wird um ihre Breite länger.',
+    'set.drawingNote': 'Alle Einstellungen gelten für die App, nicht nur für eine Zeichnung: Sie bleiben in diesem Browser gespeichert und gelten für neue und für geöffnete Zeichnungen.',
     'fit.clamp': 'Rohrschelle', 'fits.clamp': 'Schelle', 'fit.weldclamp': 'Anschweiß-Rohrschelle', 'fits.weldclamp': 'Anschweiß.',
     'cat.supports': 'Halterungen', 'cats.supports': 'Halter.',
-    'sb.posMm': 'Abstand vom Rohranfang (mm)', 'sb.toEnd': 'Abstand zum anderen Rohrende: {n} mm',
-    'err.posMm': 'Zwischen 1 und {n} mm',
-    'sh.legend': 'LEGENDE', 'set.exportLegend': 'Legende der verwendeten Symbole im Bemerkungsfeld anzeigen',
+    'sb.posMm': 'Abstand Rohranfang bis Halterung (mm)', 'sb.toEnd': 'Abstand Halterung bis zum anderen Rohrende: {n} mm',
+    'err.posMm': 'Zwischen 0 und {n} mm', 'sb.supW': 'Breite auf dem Rohr (mm)', 'set.supW': 'Breite {name} (mm)',
+    'sb.flanges': 'Flansche', 'fl.auto': 'Automatisch (Regel in den Einstellungen)', 'fl.none': 'Kein Flansch', 'fl.start': 'Flansch am Anfang',
+    'fl.end': 'Flansch am Ende', 'fl.both': 'Flansche an beiden Enden', 'bar.flanges': 'Flansche neuer {std}-Rohre', 'set.newFl': 'Flansche neuer {std}-Rohre',
+    'sh.bom': 'STÜCKLISTE / LEGENDE', 'bom.pos': 'Pos.', 'bom.sym': 'Symbol', 'bom.item': 'Benennung', 'bom.size': 'Nennweite', 'bom.qty': 'Menge',
+    'bom.pipeTotal': 'Rohrlänge gesamt', 'bom.elbow': 'Bogen {a}°', 'bom.tee': 'T-Stück', 'bom.cross': 'Kreuzstück',
+    'bom.endFlange': 'Flansch (Rohrende)', 'bom.flTotal': 'Flansche gesamt',
+    'sh.legend': 'LEGENDE', 'set.exportLegend': 'Stückliste mit Legende der Symbole im Bemerkungsfeld anzeigen',
     'lg.autoFlange': 'Flansch (automatisch gezeichnet)', 'lg.elbowWeld': 'Schweißnaht an Bogen / T-Stück',
     'lg.right': 'Rechter Winkel (90°) zwischen Rohren', 'lg.angle': 'Winkel zwischen Rohren',
     'sb.showAngles': 'Winkel zwischen den Rohren an Bögen anzeigen',
@@ -328,7 +344,7 @@
     'help': `<p><b>Schnellstart</b></p>
       <p>1. <b>KF-Rohr</b> oder <b>ISO-K-Rohr</b> wählen und einen Startpunkt anklicken oder antippen. Vorhandene Punkte werden gefangen (grüner Ring).</p>
       <p>2. In die gewünschte Richtung bewegen und klicken bzw. tippen, oder eine Länge (mm) eintippen und <kbd>Enter</kbd> drücken. Jeder Punkt setzt den Strang fort und erzeugt einen Bogen.</p>
-      <p>3. <kbd>Esc</kbd>, Rechtsklick, Doppelklick oder <b>Strang beenden</b> beendet den Strang. Auf einem Rohr beginnen ergibt ein T-Stück. Doppelklick auf ein Rohrende zeichnet dort weiter.</p>
+      <p>3. <kbd>Esc</kbd>, Rechtsklick, Doppelklick / Doppeltippen oder <b>Strang beenden</b> beendet den Strang. Auf einem Rohr beginnen ergibt ein T-Stück. Doppelklick auf ein Rohrende zeichnet dort weiter.</p>
       <p>4. Mit <b>Bearbeiten</b> <kbd>E</kbd> auf einem Rohr Länge, Winkel oder Nennweite ändern oder einen Bogen einfügen.</p>
       <p>5. Ein Bauteil wählen und auf ein Rohr klicken. Armaturen, Reduzierungen, Kompensatoren und Schläuche werden mit ihrer Baulänge eingefügt (das Rohr wird länger); die Länge steht in der Leiste über der Zeichnung. Bauteile zeigen zur Seite und zum Ende, die dem Klick am nächsten sind. <kbd>X</kbd> kehrt die Seite um, <kbd>C</kbd> die Richtung.</p>
       <p>6. Für 45°-Rohre <b>Rohrwinkel</b> auf 45° und 90° stellen und die Ebene mit <kbd>Tab</kbd> wechseln.</p>

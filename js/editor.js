@@ -17,7 +17,28 @@
   const popupEl = $('#popup');
   const finishBtn = $('#finishBtn');
 
-  const STYLE = { sym: 10, font: 11.5, lw: 3, thin: 1, col: '#1d2733', bg: '#ffffff', dimCol: '#5b6b7c', selCol: '#0b63ce', hoverCol: '#4a90e2' };
+  // Colours of the drawing on screen for the light and the dark look (the exported sheet is always black on white).
+  // Selection and hover use the orange accent.
+  const LOOKS = {
+    light: { col: '#1d2733', bg: '#ffffff', dimCol: '#5b6b7c', selCol: '#ea580c', hoverCol: '#f59e5b', nodeStroke: '#64707d', tagBg: '#1d2733', compass: '#64707d', compassN: '#ea580c', snap: '#15803d' },
+    dark: { col: '#e3e9ef', bg: '#11161c', dimCol: '#8d9bab', selCol: '#fb923c', hoverCol: '#fdba74', nodeStroke: '#94a2b0', tagBg: '#3a4552', compass: '#94a2b0', compassN: '#fb923c', snap: '#4ade80' },
+  };
+  const STYLE = Object.assign({ sym: 10, font: 11.5, lw: 3, thin: 1 }, LOOKS[document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light']);
+  const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+  /** Light or dark, from Settings → Display ("auto" follows the system). */
+  function applyTheme() {
+    const pref = ISO.profile.get().theme || 'auto';
+    const dark = pref === 'dark' || (pref === 'auto' && darkMQ.matches);
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    Object.assign(STYLE, LOOKS[dark ? 'dark' : 'light']);
+  }
+  /** Redraw everything that has colours built in (after switching light / dark). */
+  function refreshLook() {
+    applyTheme();
+    gridKey = '';
+    buildPalette(); buildCompass(); render();
+  }
+  darkMQ.addEventListener('change', () => { if ((ISO.profile.get().theme || 'auto') === 'auto') refreshLook(); });
   const STORE_KEY = 'pipeiso.autosave.v1';
   const mobileMQ = window.matchMedia('(max-width: 760px)');
 
@@ -38,6 +59,7 @@
   let popup = null;     // edit popup state: {kind, id, at:[x,y], t, msg}
   const newLen = {};    // face-to-face length chosen for new components, per type (empty = typical length)
   const isInline = (t) => !!(ISO.FITTINGS[t] && ISO.FITTINGS[t].inline);
+  const isSupport = (t) => !!(ISO.FITTINGS[t] && ISO.FITTINGS[t].support);
   const undoStack = [];
   const redoStack = [];
 
@@ -94,15 +116,29 @@
   // ---------- persistence & history ----------
   let saveTimer;
   function autosave() {
+    syncAppSettings();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try { localStorage.setItem(STORE_KEY, JSON.stringify(doc)); } catch (e) { /* storage unavailable */ }
     }, 300);
   }
+  /** Drawing options are app settings: every change (also by undo or a settings import) is kept for all drawings. */
+  function syncAppSettings() {
+    const cur = ISO.profile.get().drawSettings || {}, next = {};
+    Object.keys(ISO.DRAW_DEFAULTS).forEach((k) => { if (doc.settings[k] !== undefined) next[k] = doc.settings[k]; });
+    if (JSON.stringify(next) !== JSON.stringify(cur)) ISO.profile.set({ drawSettings: next });
+  }
   function loadAutosave() {
     try {
       const s = localStorage.getItem(STORE_KEY);
-      return s ? ISO.migrate(JSON.parse(s)) : null;
+      const raw = s ? JSON.parse(s) : null;
+      // First start with app-wide drawing options: take over the options of the drawing that was open
+      if (raw && raw.settings && !ISO.profile.get().drawSettings) {
+        const keep = {};
+        Object.keys(ISO.DRAW_DEFAULTS).forEach((k) => { if (typeof raw.settings[k] === typeof ISO.DRAW_DEFAULTS[k]) keep[k] = raw.settings[k]; });
+        ISO.profile.set({ drawSettings: keep });
+      }
+      return raw ? ISO.migrate(raw) : null;
     } catch (e) { return null; }
   }
   const snapshot = () => JSON.stringify(doc);
@@ -188,20 +224,64 @@
     return null;
   }
 
-  /** Field for a support's position: distance from the start of its pipe in mm, and the distance to the other end. */
+  /** Flange choices for a pipe (dropdown entries). */
+  const flOpts = () => [['auto', T('fl.auto')]].concat(ISO.FLANGE_OPTS.map((k) => [k, T('fl.' + k)]));
+  const setPipeFl = (pipe, v) => { if (ISO.FLANGE_OPTS.includes(v)) pipe.fl = v; else delete pipe.fl; };
+
+  // Supports take up a width on the pipe. Their position is the distance from the pipe start to the support's near edge
+  // (as in the chain dimension); internally f.t is the centre.
+  const supportGeo = (f) => {
+    const L = ISO.pipeLen(doc, ISO.byId(doc.pipes, f.pipeId)), w = ISO.supportWidth(f);
+    return { L, w, pos: f.t * L - w / 2 };
+  };
+  /** Fields for a support: distance from the pipe start, width on the pipe, and the distance left to the other end. */
   function supportPosHtml(f, id) {
-    const L = ISO.pipeLen(doc, ISO.byId(doc.pipes, f.pipeId)), mm = Math.round(f.t * L);
-    return field(T('sb.posMm'), num(id, mm, `min="1" max="${Math.max(1, Math.floor(L) - 1)}" step="1"`)) + `<div class="msg" id="${id}-msg"></div>` +
-      `<div class="note-box" style="margin:-4px 0 10px">${esc(T('sb.toEnd', { n: Math.round(L - mm) }))}</div>`;
+    const { L, w, pos } = supportGeo(f);
+    return field(T('sb.posMm'), num(id, Math.round(pos), `min="0" step="1"`)) + `<div class="msg" id="${id}-msg"></div>` +
+      field(T('sb.supW'), num(id + '-w', Math.round(w), 'min="1" step="1"')) + `<div class="msg" id="${id}-w-msg"></div>` +
+      `<div class="note-box" style="margin:-4px 0 10px">${esc(T('sb.toEnd', { n: Math.round(L - pos - w) }))}</div>`;
   }
-  /** Move a support to v mm from the start of its pipe. Returns an error message or null. */
+  /** Move a support so that its near edge is v mm from the start of its pipe. Returns an error message or null. */
   function setSupportPos(fid, v) {
     const f = ISO.byId(doc.fittings, fid);
-    const L = ISO.pipeLen(doc, ISO.byId(doc.pipes, f.pipeId));
+    const { L, w } = supportGeo(f);
+    const n = parseFloat(v);
+    if (!(n >= 0 && n + w <= L)) return T('err.posMm', { n: Math.max(0, Math.floor(L - w)) });
+    f.t = (n + w / 2) / L;
+    return null;
+  }
+  /** Set a support's width on the pipe (its near edge stays where it is, if it fits). Returns an error message or null. */
+  function setSupportWidth(fid, v) {
+    const f = ISO.byId(doc.fittings, fid);
+    const { L, pos } = supportGeo(f);
     const n = parseFloat(v);
     if (!(n > 0 && n < L)) return T('err.posMm', { n: Math.max(1, Math.floor(L) - 1) });
-    f.t = n / L;
+    const p = Math.max(0, Math.min(pos, L - n));
+    f.len = n;
+    f.t = (p + n / 2) / L;
     return null;
+  }
+  /** Support chain dimension under the pointer: { fid, field: 'pos' | 'w' }, or null. */
+  function chainHit(s) {
+    if (!doc.settings.showDims) return null;
+    const k = tm();
+    for (const pipe of doc.pipes) {
+      if (pipe.hideDim) continue;
+      const ch = ISO.supportChain(doc, pipe);
+      if (!ch) continue;
+      const cg = ISO.chainGeom(pipe, ISO.pipeGeom(doc, pipe, P), STYLE.sym, STYLE.font, ch.L);
+      for (const sg of ch.segs) {
+        if (sg.b - sg.a < 0.5) continue;
+        const onLine = distSeg(s, cg.at(sg.a), cg.at(sg.b)).d < 5 * k;
+        if (onLine || dist(s, cg.text(sg).pos) < STYLE.font * 1.3 * k) return { fid: sg.fid, field: sg.field };
+      }
+    }
+    return null;
+  }
+  /** Open the edit box of a support from its chain dimension, with the matching field ready to type in. */
+  function editFromChain(hit, s) {
+    openPopup('fitting', hit.fid, s);
+    setTimeout(() => { const el = document.getElementById(hit.field === 'w' ? 'pp-mm-w' : 'pp-mm'); if (el) { el.focus(); el.select(); } }, 30);
   }
 
   /** Dimension under the pointer (its line or its number), as { type: 'dim', id: pipe id }, or null. */
@@ -289,7 +369,6 @@
   const SNAP_R = 14;        // px: snap radius for points (nodes)
   const SNAP_PIPE = 9;      // px: snap radius for pipes
   const SNAP_ALIGN = 8;     // px: snap radius for alignment guides
-  const SNAP_COL = '#15803d';
   const snapText = (kind) => T('snap.' + kind);
 
   /** Directions available for drawing right now. */
@@ -331,13 +410,18 @@
     const bar = $('#planebar');
     if (doc.settings.angles !== '45') plane = 'axes';
     const showPlanes = tool === 'pipe' && doc.settings.angles === '45';
-    const showLen = isInline(tool);
-    bar.hidden = !(showPlanes || showLen);
-    if (showPlanes) {
-      bar.innerHTML = ISO.PLANE_ORDER.map((k) => `<button data-plane="${k}" class="${k === plane ? 'active' : ''}">${esc(T('plane.' + k))}</button>`).join('');
+    const showLen = isInline(tool) || isSupport(tool);
+    bar.hidden = !(tool === 'pipe' || showLen);
+    if (tool === 'pipe') {
+      // 45° planes (when 45° is on) and the flanges new pipes of this standard get
+      const key = 'newFl' + pipeStd;
+      bar.innerHTML = (showPlanes ? ISO.PLANE_ORDER.map((k) => `<button data-plane="${k}" class="${k === plane ? 'active' : ''}">${esc(T('plane.' + k))}</button>`).join('') : '') +
+        `<label class="lenbar">${esc(T('bar.flanges', { std: ISO.STANDARDS[pipeStd].name }))} ${select('newFl', doc.settings[key] || 'auto', flOpts())}</label>`;
+      $('#newFl').addEventListener('change', (e) => { doc.settings[key] = e.target.value; autosave(); svg.focus({ preventScroll: true }); });
     } else if (showLen) {
-      bar.innerHTML = `<label class="lenbar">${esc(T('bar.len', { name: ISO.fitName(tool) }))} ` +
-        `<input type="number" inputmode="decimal" min="1" step="1" id="newLen" value="${esc(newLen[tool] || '')}" placeholder="${esc(T('bar.auto'))}"></label>`;
+      const sup = isSupport(tool);
+      bar.innerHTML = `<label class="lenbar">${esc(T(sup ? 'bar.width' : 'bar.len', { name: ISO.fitName(tool) }))} ` +
+        `<input type="number" inputmode="decimal" min="1" step="1" id="newLen" value="${esc(newLen[tool] || '')}" placeholder="${esc(sup ? String(ISO.supportWidth({ type: tool })) : T('bar.auto'))}"></label>`;
       const inp = $('#newLen');
       inp.addEventListener('input', () => { const v = parseFloat(inp.value); newLen[tool] = v > 0 ? v : ''; updateStatus(); });
     }
@@ -346,6 +430,28 @@
   /** Length a new component of this type would get on this pipe. */
   function insertLength(type, pipe) {
     return newLen[type] > 0 ? newLen[type] : ISO.compDefaultLength(type, pipe ? pipe.dn : ISO.defaultSpec(doc, pipeStd).dn);
+  }
+  /** Width a new support of this type gets: the value in the bar above the drawing, else the standard width. */
+  const newSupportWidth = (type) => (newLen[type] > 0 ? newLen[type] : ISO.supportWidth({ type }));
+  /** Where a support of width w sits on a pipe for pointer parameter t (returns its centre as t).
+   *  Like reducers and bellows it snaps flush to a pipe end when it is near one; otherwise its near edge snaps to the snap step. */
+  function supportT(pipe, t, w) {
+    const Lp = ISO.pipeLen(doc, pipe), step = doc.settings.snap;
+    if (Lp <= w) return 0.5;
+    const raw = t * Lp - w / 2; // near edge, mm from the pipe start
+    let e = clamp(snapV(raw, step), 0, Lp - w);
+    if (raw < step * 0.5) e = 0;
+    if (Lp - w - raw < step * 0.5) e = Lp - w;
+    return (e + w / 2) / Lp;
+  }
+  /** Placing a new support: near a pipe end it is added into the line there, like a reducer or bellows
+   *  (returns { dq: 0 | pipe length } – the line gets longer by its width); otherwise it sits on the pipe ({ t }). */
+  function supportPlace(pipe, t, w) {
+    const Lp = ISO.pipeLen(doc, pipe), step = doc.settings.snap;
+    const raw = t * Lp - w / 2;
+    if (raw < step * 0.5) return { dq: 0 };
+    if (Lp - w - raw < step * 0.5) return { dq: Lp };
+    return { t: supportT(pipe, t, w) };
   }
   /** Where (mm from pipe.a) a component would be added for pointer parameter t. */
   function insertAt(pipe, t) {
@@ -581,11 +687,15 @@
   function renderGrid(w, h) {
     const st = doc.settings;
     const style = st.gridStyle || 'lines';
-    const pp = ISO.paperColors();
-    const key = [w, h, view.zoom, view.panX, view.panY, st.gridStep, style, pp.major].join('|');
+    const p0 = ISO.paperColors();
+    // dark look: the same paper colour, toned down on the dark background
+    const pp = STYLE.bg === '#ffffff' ? p0 : {
+      bg: STYLE.bg, major: ISO.mixColor(p0.major, STYLE.bg, 0.45), minor: ISO.mixColor(p0.major, STYLE.bg, 0.72), dot: ISO.mixColor(p0.major, STYLE.bg, 0.3),
+    };
+    const key = [w, h, view.zoom, view.panX, view.panY, st.gridStep, style, pp.major, STYLE.bg].join('|');
     if (key === gridKey) return;
     gridKey = key;
-    let out = `<rect width="${w}" height="${h}" fill="${style === 'none' ? '#fff' : pp.bg}"/>`;
+    let out = `<rect width="${w}" height="${h}" fill="${style === 'none' ? STYLE.bg : pp.bg}"/>`;
     if (style !== 'none') {
       const g = ISO.gridStepFor(st.gridStep, view.zoom, style === 'dots' ? 16 : 14);
       const gp = ISO.isoGridPaths(0, 0, w, h, view.zoom, view.panX, view.panY, g, 5, style === 'dots');
@@ -609,7 +719,7 @@
     if (tool === 'pipe') {
       Object.keys(doc.nodes).forEach((id) => {
         const c = P(ISO.nodePt(doc, id));
-        o.push(`<circle cx="${r2(c[0])}" cy="${r2(c[1])}" r="3.5" fill="#fff" stroke="#64707d" stroke-width="1.4"/>`);
+        o.push(`<circle cx="${r2(c[0])}" cy="${r2(c[1])}" r="3.5" fill="${STYLE.bg}" stroke="${STYLE.nodeStroke}" stroke-width="1.4"/>`);
       });
     }
     if (tool === 'pipe' && run && !preview) {
@@ -625,26 +735,26 @@
         const snap = preview.snap;
         if (snap && snap.kind === 'align') {
           const F = P(snap.from);
-          o.push(`<line x1="${r2(F[0])}" y1="${r2(F[1])}" x2="${r2(B[0])}" y2="${r2(B[1])}" stroke="${SNAP_COL}" stroke-width="1" stroke-dasharray="4 4"/>`);
-          o.push(ring(F, 5, SNAP_COL, 1.5));
+          o.push(`<line x1="${r2(F[0])}" y1="${r2(F[1])}" x2="${r2(B[0])}" y2="${r2(B[1])}" stroke="${STYLE.snap}" stroke-width="1" stroke-dasharray="4 4"/>`);
+          o.push(ring(F, 5, STYLE.snap, 1.5));
         }
         o.push(`<path d="${d}" fill="none" stroke="${sc}" stroke-width="${STYLE.lw}" stroke-dasharray="8 5" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>`);
         o.push(dot(A, 4, sc));
         route.slice(0, -1).forEach((p) => o.push(dot(p, 3, sc)));
-        if (snap && snap.kind === 'grid') o.push(ring(B, 6, SNAP_COL, 2) + dot(B, 2.5, SNAP_COL));
-        else if (snap) o.push(ring(B, 8, SNAP_COL, 2.5) + dot(B, 2.5, SNAP_COL));
+        if (snap && snap.kind === 'grid') o.push(ring(B, 6, STYLE.snap, 2) + dot(B, 2.5, STYLE.snap));
+        else if (snap) o.push(ring(B, 8, STYLE.snap, 2.5) + dot(B, 2.5, STYLE.snap));
         else o.push(dot(B, 4, sc));
         const txt = preview.len == null ? T('tag.pipes', { n: route.length }) : `${ISO.dirName(preview.dir)} ${fmt(preview.len)} mm`;
         const mid = lerp(A, route[0], 0.5);
-        o.push(tag(mid[0] + 12, mid[1] - 14, txt, '#1d2733'));
-        if (snap && snap.kind !== 'grid') o.push(tag(B[0] + 14, B[1] + 18, snapText(snap.kind), SNAP_COL));
+        o.push(tag(mid[0] + 12, mid[1] - 14, txt, STYLE.tagBg));
+        if (snap && snap.kind !== 'grid') o.push(tag(B[0] + 14, B[1] + 18, snapText(snap.kind), STYLE.snap));
       } else {
         const A = P(preview.pt);
         if (preview.snap && preview.snap.kind === 'grid') {
-          o.push(ring(A, 6, SNAP_COL, 2) + dot(A, 2, SNAP_COL));
+          o.push(ring(A, 6, STYLE.snap, 2) + dot(A, 2, STYLE.snap));
         } else if (preview.snap) {
-          o.push(ring(A, 8, SNAP_COL, 2.5) + dot(A, 2.5, SNAP_COL));
-          o.push(tag(A[0] + 14, A[1] + 18, snapText(preview.snap.kind), SNAP_COL));
+          o.push(ring(A, 8, STYLE.snap, 2.5) + dot(A, 2.5, STYLE.snap));
+          o.push(tag(A[0] + 14, A[1] + 18, snapText(preview.snap.kind), STYLE.snap));
         } else {
           o.push(ring(A, 6, sc) + dot(A, 1.8, sc));
         }
@@ -655,7 +765,7 @@
       if (pipe) {
         const g = ISO.pipeGeom(doc, pipe, P);
         const c = lerp(g.A, g.B, preview.t);
-        const st = { col: sc, bg: '#fff', thin: STYLE.thin, lw: STYLE.lw };
+        const st = { col: sc, bg: STYLE.bg, thin: STYLE.thin, lw: STYLE.lw };
         if (preview.len) {
           // the component is added here and pushes the rest of the line along
           const half = (preview.len * view.zoom) / 2;
@@ -749,7 +859,8 @@
     else if (isInline(tool)) {
       const pp = preview && preview.pipeId ? ISO.byId(doc.pipes, preview.pipeId) : null;
       s = T('st.insert', { name: esc(ISO.fitName(tool)), len: fmt(insertLength(tool, pp)) });
-    } else if (ISO.FITTINGS[tool]) s = T('st.fitting', { name: esc(ISO.fitName(tool)) });
+    } else if (isSupport(tool)) s = T('st.support', { name: esc(ISO.fitName(tool)), w: fmt(newSupportWidth(tool)) });
+    else if (ISO.FITTINGS[tool]) s = T('st.fitting', { name: esc(ISO.fitName(tool)) });
     statusEl.innerHTML = s;
     let c = '';
     if (tool === 'pipe' && preview && preview.pt) c = fmtPt(preview.pt);
@@ -790,9 +901,11 @@
   let collapsed = new Set();
   try { collapsed = new Set(JSON.parse(localStorage.getItem('pipeiso.cats') || '[]')); } catch (e) { /* ignore */ }
 
+  /** Background colour of the panels (inside of the palette icons). */
+  const panelColor = () => getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#ffffff';
   function fittingIcon(type) {
     return '<line x1="2" y1="16" x2="28" y2="16" stroke="currentColor" stroke-width="2"/>' +
-      ISO.drawFitting(type, [15, 16], [1, 0], [0, -1], [0, 1], 7.5, { col: 'currentColor', bg: '#fff', thin: 1.1, lw: 2 }, false, 1);
+      ISO.drawFitting(type, [15, 16], [1, 0], [0, -1], [0, 1], 7.5, { col: 'currentColor', bg: panelColor(), thin: 1.1, lw: 2 }, false, 1);
   }
 
   // ---------- palette: categories, valve sub-groups (slide-out), favorites ----------
@@ -1047,8 +1160,8 @@
     axes.forEach(([n, v]) => {
       const d = ISO.iso(v);
       const e = [c[0] + d[0] * L, c[1] + d[1] * L];
-      h += `<line x1="${c[0]}" y1="${c[1]}" x2="${r2(e[0])}" y2="${r2(e[1])}" stroke="${n === 'N' ? '#0b63ce' : '#64707d'}" stroke-width="${n === 'N' ? 2.4 : 1.6}"/>`;
-      h += `<text x="${r2(c[0] + d[0] * (L + 10))}" y="${r2(c[1] + d[1] * (L + 10) + 4)}" font-size="12" font-weight="${n === 'N' ? 700 : 400}" text-anchor="middle" fill="${n === 'N' ? '#0b63ce' : '#64707d'}" font-family="Segoe UI, Arial">${esc(T('cmp.' + n))}</text>`;
+      h += `<line x1="${c[0]}" y1="${c[1]}" x2="${r2(e[0])}" y2="${r2(e[1])}" stroke="${n === 'N' ? STYLE.compassN : STYLE.compass}" stroke-width="${n === 'N' ? 2.4 : 1.6}"/>`;
+      h += `<text x="${r2(c[0] + d[0] * (L + 10))}" y="${r2(c[1] + d[1] * (L + 10) + 4)}" font-size="12" font-weight="${n === 'N' ? 700 : 400}" text-anchor="middle" fill="${n === 'N' ? STYLE.compassN : STYLE.compass}" font-family="Segoe UI, Arial">${esc(T('cmp.' + n))}</text>`;
     });
     $('#compass').innerHTML = h;
   }
@@ -1096,13 +1209,15 @@
 
   const pointTypes = () => Object.keys(ISO.FITTINGS).filter((k) => !isInline(k)).map((k) => [k, ISO.fitName(k)]);
   const inlineTypes = () => Object.keys(ISO.FITTINGS).filter(isInline).map((k) => [k, ISO.fitName(k)]);
+  const supportTypes = () => Object.keys(ISO.FITTINGS).filter(isSupport).map((k) => [k, ISO.fitName(k)]);
   const sizeOpts = () => ISO.allSizes().map(([k, d]) => [k + ':' + d, `DN${d} ${ISO.STANDARDS[k].name}`]);
 
   /** Fields for a component in the line: type, face-to-face length, sizes, orientation. */
   function compFields(pipe, prefix) {
     const c = pipe.comp;
-    let h = field(T('sb.type'), select(prefix + '-ctype', c.type, inlineTypes()));
-    h += field(T('sb.ftf'), num(prefix + '-clen', Math.round(ISO.pipeLen(doc, pipe)), 'min="1" step="1"')) + `<div class="msg" id="${prefix}-clen-msg"></div>`;
+    const sup = isSupport(c.type); // a support added into the line at a pipe end
+    let h = field(T('sb.type'), select(prefix + '-ctype', c.type, sup ? supportTypes() : inlineTypes()));
+    h += field(T(sup ? 'sb.supW' : 'sb.ftf'), num(prefix + '-clen', Math.round(ISO.pipeLen(doc, pipe)), 'min="1" step="1"')) + `<div class="msg" id="${prefix}-clen-msg"></div>`;
     h += '<div class="row2">' + field(T('sb.standard'), select(prefix + '-cstd', pipe.std, stdOpts())) +
       field(ISO.isReducer(c.type) ? T('sb.dnMain') : T('sb.dn'), select(prefix + '-cdn', pipe.dn, dnOpts(pipe.std))) + '</div>';
     if (ISO.isReducer(c.type)) h += field(T('sb.dnSmall'), select(prefix + '-csmall', `${c.std2}:${c.dn2}`, sizeOpts()));
@@ -1130,11 +1245,13 @@
     root.querySelectorAll('[data-flip]').forEach((b) => b.addEventListener('click', () => flipItem({ type: 'pipe', id }, b.dataset.flip)));
   }
 
-  /** Drawing options (stored in the drawing file). */
+  /** Drawing options: app settings, used for every drawing (see syncAppSettings). */
   function drawingSettingsHtml() {
     const st = doc.settings;
     let h = '';
     h += field(T('sb.angles'), select('s-angles', st.angles || '90', [['90', T('ang.90')], ['45', T('ang.45')]]));
+    h += '<div class="row2">' + field(T('set.newFl', { std: 'ISO-KF' }), select('s-flKF', st.newFlKF || 'auto', flOpts())) +
+      field(T('set.newFl', { std: 'ISO-K' }), select('s-flK', st.newFlK || 'auto', flOpts())) + '</div>';
     h += field(T('sb.autoFlange'), select('s-flange', st.autoFlange || 'off', [['off', T('af.off')], ['ends', T('af.ends')], ['all', T('af.all')]]));
     h += '<div class="row2">' + field(T('sb.defaultKF'), select('s-dnKF', st.defaultDnKF, dnOpts('KF'))) +
       field(T('sb.defaultK'), select('s-dnK', st.defaultDnK, dnOpts('K'))) + '</div>';
@@ -1151,6 +1268,8 @@
   function bindDrawingSettings() {
     bind('s-angles', (v) => { doc.settings.angles = v; if (v === '45' && plane === 'axes') plane = 'h'; updatePlanebar(); updateStatus(); });
     bind('s-flange', (v) => { doc.settings.autoFlange = v; });
+    bind('s-flKF', (v) => { doc.settings.newFlKF = v; updatePlanebar(); });
+    bind('s-flK', (v) => { doc.settings.newFlK = v; updatePlanebar(); });
     bind('s-dnKF', (v) => { doc.settings.defaultDnKF = parseInt(v, 10); });
     bind('s-dnK', (v) => { doc.settings.defaultDnK = parseInt(v, 10); });
     bind('s-grid', (v) => { const n = parseFloat(v); if (!(n >= 10)) return T('err.min', { n: 10 }); doc.settings.gridStep = n; });
@@ -1197,6 +1316,7 @@
       if (doc.settings.angles !== '45') h += `<div class="note-box" style="margin:-4px 0 10px">${esc(T('pp.hint45'))}</div>`;
       h += `<div class="readonly">${esc(T('sb.from'))} ${fmtPt(a)}<br>${esc(T('sb.to'))} ${fmtPt(b)}</div>`;
       h += '<div class="row2">' + field(T('sb.standard'), select('p-std', pipe.std, stdOpts())) + field(T('sb.dn'), select('p-dn', pipe.dn, dnOpts(pipe.std))) + '</div>';
+      h += field(T('sb.flanges'), select('p-fl', pipe.fl || 'auto', flOpts()));
       h += check('p-dim', T('sb.showDim'), !pipe.hideDim);
       h += check('p-flip', T('sb.dimFlip'), !!pipe.dimFlip);
       h += `<p><button class="danger" id="del">${esc(T('sb.delPipe'))}</button></p>`;
@@ -1239,6 +1359,7 @@
       bind('p-dir', (v) => { const err = setPipeDir(ISO.byId(doc.pipes, id), v); if (!err) setTimeout(renderSidebar); return err; });
       bind('p-std', (v) => { const p = ISO.byId(doc.pipes, id); p.std = v; p.dn = ISO.defaultSpec(doc, v).dn; setTimeout(renderSidebar); });
       bind('p-dn', (v) => { ISO.byId(doc.pipes, id).dn = parseInt(v, 10); setTimeout(renderSidebar); });
+      bind('p-fl', (v) => { setPipeFl(ISO.byId(doc.pipes, id), v); });
       bind('p-dim', (v) => { ISO.byId(doc.pipes, id).hideDim = !v; });
       bind('p-flip', (v) => { ISO.byId(doc.pipes, id).dimFlip = v; });
     } else if (sel.type === 'fitting') {
@@ -1246,6 +1367,7 @@
       bind('f-type', (v) => { ISO.byId(doc.fittings, id).type = v; setTimeout(renderSidebar); });
       bind('f-pos', (v) => { const n = parseFloat(v); if (!(n > 0 && n < 100)) return T('err.pos'); ISO.byId(doc.fittings, id).t = n / 100; });
       bind('f-mm', (v) => { const err = setSupportPos(id, v); if (!err) setTimeout(renderSidebar); return err; });
+      bind('f-mm-w', (v) => { const err = setSupportWidth(id, v); if (!err) setTimeout(renderSidebar); return err; });
       sidebar.querySelectorAll('[data-flip]').forEach((b) => b.addEventListener('click', () => flipItem({ type: 'fitting', id }, b.dataset.flip)));
     } else if (sel.type === 'label') {
       const id = sel.id;
@@ -1319,6 +1441,7 @@
       h += field(T('pp.angle'), select('pp-dir', cur ? cur.key : '', (cur ? [] : [['', T('sb.oblique')]]).concat(dirs.map((D) => [D.key, ISO.dirName(D)]))));
       if (doc.settings.angles !== '45') h += `<div class="note">${esc(T('pp.hint45'))}</div>`;
       h += '<div class="row2">' + field(T('sb.standard'), select('pp-std', pipe.std, stdOpts())) + field(T('sb.dn'), select('pp-dn', pipe.dn, dnOpts(pipe.std))) + '</div>';
+      h += field(T('sb.flanges'), select('pp-fl', pipe.fl || 'auto', flOpts()));
       h += `<div class="msg" id="pp-msg">${esc(popup.msg || '')}</div>`;
       h += `<div class="actions"><button class="danger" id="pp-del">${esc(T('sb.delete'))}</button>${popup.t != null ? `<button id="pp-bend">${esc(T('pp.bend'))}</button>` : ''}<span style="flex:1"></span><button class="primary" id="pp-apply">${esc(T('pp.apply'))}</button></div>`;
     } else if (popup.kind === 'fitting') {
@@ -1349,6 +1472,7 @@
       });
       $('#pp-apply').addEventListener('click', () => applyPipePopup(id));
       $('#pp-dir').addEventListener('change', () => applyPipePopup(id)); // a new direction applies at once
+      $('#pp-fl').addEventListener('change', (e) => commit(() => setPipeFl(ISO.byId(doc.pipes, id), e.target.value)));
       $('#pp-del').addEventListener('click', deleteSelected);
       popupEl.querySelectorAll('input').forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPipePopup(id); }));
       const bend = $('#pp-bend');
@@ -1361,17 +1485,18 @@
         if (!(n > 0 && n < 100)) { popup.msg = T('err.pos'); renderPopup(); return; }
         commit(() => { ISO.byId(doc.fittings, id).t = n / 100; });
       });
-      const pm = $('#pp-mm');
-      if (pm) {
-        pm.addEventListener('change', () => {
+      [['#pp-mm', setSupportPos], ['#pp-mm-w', setSupportWidth]].forEach(([sel2, fn]) => {
+        const el = $(sel2);
+        if (!el) return;
+        el.addEventListener('change', () => {
           const before = snapshot();
-          const err = setSupportPos(id, pm.value);
+          const err = fn(id, el.value);
           popup.msg = err || '';
           if (err) { renderPopup(); return; }
           undoStack.push(before); redoStack.length = 0; changed();
         });
-        pm.addEventListener('keydown', (e) => { if (e.key === 'Enter') pm.blur(); });
-      }
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.blur(); });
+      });
       popupEl.querySelectorAll('[data-flip]').forEach((b) => b.addEventListener('click', () => flipItem({ type: 'fitting', id }, b.dataset.flip)));
       $('#pp-del').addEventListener('click', deleteSelected);
     }
@@ -1440,13 +1565,19 @@
     // A popup opened by a long press closes with the next tap outside it
     if (popup && tool !== 'edit') { closePopup(); if (tool === 'select') return; }
     const now = performance.now();
-    const isDouble = lastDown && lastDown.tool === tool && now - lastDown.t < 450 && dist(s, lastDown.s) < 8 * tm();
-    lastDown = isDouble ? null : { t: now, s, tool };
+    const prev = lastDown;
+    const isDouble = prev && prev.tool === tool && now - prev.t < 450 && dist(s, prev.s) < 8 * tm();
+    // Double click / double tap for the pipe tool: a finger's second tap may land a little further away
+    const quickSecond = prev && prev.tool === tool && now - prev.t < 450 && dist(s, prev.s) < (lastPtr === 'touch' ? 32 : 12);
+    lastDown = isDouble || quickSecond ? null : { t: now, s, tool };
 
     if (tool === 'select') {
       if (isDouble) { drag = null; onDoubleClick(s); return; }
       const h = hitTest(s);
-      if (!h) { const dh = dimHit(s); if (dh) { flipDim(dh.id); return; } } // a click on a dimension flips it
+      if (!h) {
+        const dh = dimHit(s); if (dh) { flipDim(dh.id); return; } // a click on a pipe's dimension flips it
+        const ch = chainHit(s); if (ch) { editFromChain(ch, s); return; } // a click on a support dimension edits it
+      }
       sel = h ? { type: h.type, id: h.id } : null;
       if (h && (h.type === 'fitting' || h.type === 'label') && e) {
         drag = { kind: h.type, id: h.id, s0: s, moved: false };
@@ -1456,16 +1587,22 @@
       if (isMobile() && !sel) closeSheet();
     } else if (tool === 'edit') {
       const h = hitTest(s, ['fitting', 'pipe']);
-      if (!h) { const dh = dimHit(s); if (dh) flipDim(dh.id); else closePopup(); return; }
+      if (!h) {
+        const dh = dimHit(s), ch = !dh && chainHit(s);
+        if (dh) flipDim(dh.id); else if (ch) editFromChain(ch, s); else closePopup();
+        return;
+      }
       if (h.type === 'fitting') openPopup('fitting', h.id, s);
       else openPopup('pipe', h.id, s, h.t);
     } else if (tool === 'pipe') {
       if (!run) {
+        // the second tap of a double tap that already ended the run (it reached an existing point) starts nothing
+        if (quickSecond) return;
         beginRun(startCandidate(s));
         run.lastClick = s;
         preview = lastPtr === 'touch' ? null : runPreview(s);
-      } else if (dist(s, P(run.start.pt)) < 6 * tm() || (run.lastClick && dist(s, run.lastClick) < 5 * tm())) {
-        endRun(); // clicking the current point again (e.g. double-click) finishes the run
+      } else if (quickSecond || dist(s, P(run.start.pt)) < 6 * tm() || (run.lastClick && dist(s, run.lastClick) < 5 * tm())) {
+        endRun(); // double click / double tap (or clicking the current point again) ends the pipe here
         return;
       } else {
         preview = runPreview(s);
@@ -1504,7 +1641,26 @@
       const h = hitTest(s, ['pipe'], { plain: true });
       if (!h) return;
       const o = orientFor(h.id, h.t, s);
-      commit(() => { doc.fittings.push({ id: ISO.uid(doc, 'f'), type: tool, pipeId: h.id, t: snapT(h.t), flip: o.flip, side: o.side }); }, { sidebar: false });
+      const pipe = ISO.byId(doc.pipes, h.id);
+      // supports snap like reducers and bellows and take the width from the bar;
+      // at a pipe end they are added into the line (the line gets longer by their width)
+      const sup = isSupport(tool);
+      let t = snapT(h.t);
+      if (sup) {
+        const w = newSupportWidth(tool), pl = supportPlace(pipe, h.t, w);
+        if (pl.dq != null) {
+          const before = snapshot();
+          const res = ISO.insertComponent(doc, pipe, pl.dq, tool, { length: w, side: o.side, flip: o.flip });
+          if (res.err) { doc = JSON.parse(before); flash(res.err); return; }
+          undoStack.push(before); redoStack.length = 0; preview = null;
+          changed({ sidebar: false });
+          return;
+        }
+        t = pl.t;
+      }
+      commit(() => {
+        doc.fittings.push(Object.assign({ id: ISO.uid(doc, 'f'), type: tool, pipeId: h.id, t, flip: o.flip, side: o.side }, sup && newLen[tool] > 0 ? { len: newLen[tool] } : {}));
+      }, { sidebar: false });
     }
   }
 
@@ -1517,8 +1673,10 @@
     }
     if (drag.kind === 'fitting') {
       const f = ISO.byId(doc.fittings, drag.id);
-      const g = ISO.pipeGeom(doc, ISO.byId(doc.pipes, f.pipeId), P);
-      f.t = clamp(distSeg(s, g.A, g.B).t, 0.02, 0.98);
+      const pipe = ISO.byId(doc.pipes, f.pipeId);
+      const g = ISO.pipeGeom(doc, pipe, P);
+      const t = distSeg(s, g.A, g.B).t;
+      f.t = isSupport(f.type) ? supportT(pipe, t, ISO.supportWidth(f)) : clamp(t, 0.02, 0.98);
     } else if (drag.kind === 'label') {
       const lab = ISO.byId(doc.labels, drag.id);
       const { anchor } = ISO.labelPos(doc, lab, P, STYLE.sym);
@@ -1647,7 +1805,7 @@
       dragMove(s);
       return;
     }
-    if (tool === 'select' || tool === 'edit') hover = hitTest(s, tool === 'edit' ? ['fitting', 'pipe'] : undefined) || dimHit(s);
+    if (tool === 'select' || tool === 'edit') hover = hitTest(s, tool === 'edit' ? ['fitting', 'pipe'] : undefined) || dimHit(s) || (chainHit(s) ? { type: 'chain' } : null);
     else if (tool === 'pipe') preview = run ? runPreview(s) : startCandidate(s);
     else if (tool === 'label') {
       const h = hitTest(s, ['pipe']);
@@ -1664,7 +1822,11 @@
           const t = dq / ISO.pipeLen(doc, pipe);
           preview = Object.assign({ pipeId: h.id, t, len: insertLength(tool, pipe) }, orientFor(h.id, h.t, s));
         } else {
-          preview = Object.assign({ pipeId: h.id, t: snapT(h.t) }, orientFor(h.id, h.t, s));
+          if (isSupport(tool)) {
+            const w = newSupportWidth(tool), pl = supportPlace(pipe, h.t, w);
+            // at a pipe end: shown like a component that is added into the line ("+50 mm")
+            preview = Object.assign(pl.dq != null ? { pipeId: h.id, t: pl.dq / ISO.pipeLen(doc, pipe), len: w } : { pipeId: h.id, t: pl.t }, orientFor(h.id, h.t, s));
+          } else preview = Object.assign({ pipeId: h.id, t: snapT(h.t) }, orientFor(h.id, h.t, s));
         }
       }
     }
@@ -1834,6 +1996,9 @@
     h += `<div class="len-grid" id="lenGrid">${lenGridHtml()}</div>`;
     h += `<p><button id="lenReset">${esc(T('set.lenReset'))}</button></p>`;
     h += field(T('set.redStep'), select('pf-redstep', pr.reducerStep || 1, [[1, T('set.red1')], [2, T('set.red2')]]));
+    const sl = pr.supLen || {};
+    h += '<div class="row2">' + ['clamp', 'weldclamp'].map((k) => field(T('set.supW', { name: ISO.fitName(k) }),
+      num('pf-sup-' + k, sl[k] > 0 ? sl[k] : '', `min="1" step="1" placeholder="${ISO.SUPPORT_WIDTH[k]}" data-sup="${k}"`))).join('') + '</div>';
     h += `<div class="note-box">${esc(T('set.lenHint'))}</div>`;
     h += `<h4>${esc(T('set.display'))}</h4>`;
     const gc = ISO.paperColors().major;
@@ -1841,8 +2006,9 @@
       GRID_SWATCHES.map((c) => `<button class="swatch${c === gc ? ' active' : ''}" data-gc="${c}" style="background:${c}" title="${c}"></button>`).join('') +
       `<input type="color" id="pf-gridcolor" value="${gc}"><button id="pf-gridreset">${esc(T('set.default'))}</button></div>`;
     h += `<div class="note-box" style="margin:-4px 0 10px">${esc(T('set.gridColorHint'))}</div>`;
+    h += field(T('set.theme'), select('pf-theme', pr.theme || 'auto', [['auto', T('th.auto')], ['light', T('th.light')], ['dark', T('th.dark')]]));
     h += check('pf-compass', T('set.showCompass'), pr.showCompass !== false);
-    h += `<h4>${esc(T('set.drawing'))}</h4>` + drawingSettingsHtml();
+    h += `<h4>${esc(T('set.drawing'))}</h4><div class="note-box" style="margin:0 0 10px">${esc(T('set.drawingNote'))}</div>` + drawingSettingsHtml();
     h += `<h4>${esc(T('set.app'))}</h4>`;
     h += field(T('set.language'), select('pf-lang', ISO.getLang(), ISO.LANGS));
     h += `<div class="note-box">PipeIso · ${esc(T('set.version'))} ${esc(ISO.VERSION)}</div>`;
@@ -1888,6 +2054,13 @@
       $('#lenGrid').innerHTML = lenGridHtml(); bindLenGrid();
     });
     $('#pf-redstep').addEventListener('change', (e) => ISO.profile.set({ reducerStep: parseInt(e.target.value, 10) }));
+    settingsDlg.querySelectorAll('[data-sup]').forEach((inp) => inp.addEventListener('change', () => {
+      const sl2 = Object.assign({}, ISO.profile.get().supLen || {});
+      const v = parseFloat(inp.value);
+      if (v > 0) sl2[inp.dataset.sup] = v; else delete sl2[inp.dataset.sup];
+      ISO.profile.set({ supLen: sl2 });
+      render(); renderSidebar();
+    }));
     bindLenGrid();
     bindDrawingSettings();
 
@@ -1923,6 +2096,7 @@
     $('#pf-gridcolor').addEventListener('input', (e) => setGridColor(e.target.value));
     $('#pf-gridreset').addEventListener('click', () => setGridColor(''));
     $('#pf-compass').addEventListener('change', (e) => { ISO.profile.set({ showCompass: e.target.checked }); applyDisplay(); });
+    $('#pf-theme').addEventListener('change', (e) => { ISO.profile.set({ theme: e.target.value }); refreshLook(); });
     $('#pf-exportgrid').addEventListener('change', (e) => { ISO.profile.set({ exportGrid: e.target.checked }); });
     $('#pf-exportlegend').addEventListener('change', (e) => { ISO.profile.set({ exportLegend: e.target.checked }); });
 
@@ -1956,8 +2130,13 @@
     if (Array.isArray(p.favs)) out.favs = p.favs.filter((x) => typeof x === 'string' && itemDef(x));
     if (p.gridColor === '' || ISO.isHexColor(p.gridColor)) out.gridColor = p.gridColor;
     if (typeof p.showCompass === 'boolean') out.showCompass = p.showCompass;
+    if (['auto', 'light', 'dark'].includes(p.theme)) out.theme = p.theme;
     if (typeof p.exportGrid === 'boolean') out.exportGrid = p.exportGrid;
     if (typeof p.exportLegend === 'boolean') out.exportLegend = p.exportLegend;
+    if (p.supLen && typeof p.supLen === 'object') {
+      out.supLen = {};
+      Object.keys(ISO.SUPPORT_WIDTH).forEach((k) => { const v = p.supLen[k]; if (typeof v === 'number' && v > 0) out.supLen[k] = v; });
+    }
     if (Array.isArray(p.catOrder)) out.catOrder = p.catOrder.filter((x) => MOBILE_CATS.includes(x));
     if (p.titleTpl && typeof p.titleTpl === 'object') {
       out.titleTpl = {};
@@ -1977,7 +2156,8 @@
   function cleanDrawing(d) {
     const out = {};
     const def = ISO.newDoc(false).settings;
-    const enums = { gridStyle: ['lines', 'dots', 'none'], angles: ['90', '45'], autoFlange: ['off', 'ends', 'all'], defaultStd: Object.keys(ISO.STANDARDS) };
+    const enums = { gridStyle: ['lines', 'dots', 'none'], angles: ['90', '45'], autoFlange: ['off', 'ends', 'all'], defaultStd: Object.keys(ISO.STANDARDS),
+      newFlKF: ['auto'].concat(ISO.FLANGE_OPTS), newFlK: ['auto'].concat(ISO.FLANGE_OPTS) };
     DRAWING_KEYS.forEach((k) => {
       const v = d[k];
       if (typeof v !== typeof def[k]) return;
@@ -2135,6 +2315,7 @@
   });
 
   // ---------- init ----------
+  applyTheme();
   ISO.applyStatic();
   applyDisplay();
   updatePaperTag();

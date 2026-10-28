@@ -3,7 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b63ce">
+  <meta name="theme-color" content="#ea580c">
+  <script>
+    // Light or dark before the page is drawn: Settings → Display (stored in this browser), "auto" follows the system
+    (function () {
+      var t = 'auto';
+      try { t = (JSON.parse(localStorage.getItem('pipeiso.profile.v1') || '{}').theme) || 'auto'; } catch (e) { /* ignore */ }
+      if (t === 'auto') t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
   <meta name="description" content="Draw piping isometrics (ISO-KF / ISO-K) and export them as A4 or A3 sheets.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">

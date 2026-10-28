@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-26.6'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-10-28.7'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
@@ -72,11 +72,40 @@
     weld: {},
     fieldweld: {},
     flow: { key: 'a', dir: true },
-    // pipe supports: placed on a pipe (no length); side = where the lugs / the welded base plate point;
-    // support = their position along the pipe is dimensioned (chain dimension) and set in mm
+    // pipe supports: placed on a pipe (they don't make it longer); side = where the lugs / the welded base plate point;
+    // support = they take up a width on the pipe and their position is dimensioned (chain dimension) and set in mm
     clamp: { side: true, support: true },
     weldclamp: { side: true, support: true },
   };
+  /** Typical width of a support on the pipe (mm); your own values are set in Settings. */
+  ISO.SUPPORT_WIDTH = { clamp: 50, weldclamp: 20 };
+  /** Width of a support on the pipe (mm): its own value, else the standard from Settings, else the typical one. */
+  ISO.supportWidth = (f) => {
+    if (f.len > 0) return f.len;
+    const own = ISO.profile && (ISO.profile.get().supLen || {})[f.type];
+    return own > 0 ? own : ISO.SUPPORT_WIDTH[f.type] || 0;
+  };
+
+  // ---------- flanges at pipe ends ----------
+  // pipe.fl: 'none' | 'start' | 'end' | 'both' chosen per pipe (start = pipe.a, end = pipe.b).
+  // Without it the automatic rule in Settings applies (doc.settings.autoFlange: off / ends of runs / all ends).
+  ISO.FLANGE_OPTS = ['none', 'start', 'end', 'both'];
+  /** Number of pipes (and components) at each point. */
+  ISO.nodeDegrees = (doc) => {
+    const d = {};
+    doc.pipes.forEach((p) => { d[p.a] = (d[p.a] || 0) + 1; d[p.b] = (d[p.b] || 0) + 1; });
+    return d;
+  };
+  /** Which ends of a pipe get a flange: [at start, at end]. */
+  ISO.pipeFlanges = (doc, pipe, deg) => {
+    if (pipe.comp) return [false, false]; // components bring their own flanges
+    if (ISO.FLANGE_OPTS.includes(pipe.fl)) return [pipe.fl === 'start' || pipe.fl === 'both', pipe.fl === 'end' || pipe.fl === 'both'];
+    const af = doc.settings.autoFlange, d = deg || ISO.nodeDegrees(doc);
+    return [pipe.a, pipe.b].map((n) => af === 'all' || (af === 'ends' && d[n] === 1));
+  };
+  const flOf = (s, e) => (s && e ? 'both' : s ? 'start' : e ? 'end' : 'none');
+  /** Explicit flange choice at one end of a pipe (true / false), or null when the pipe follows the automatic rule. */
+  const flAt = (pipe, nodeId) => (ISO.FLANGE_OPTS.includes(pipe.fl) ? (nodeId === pipe.a ? /start|both/.test(pipe.fl) : /end|both/.test(pipe.fl)) : null);
   // Palette categories. A category either lists items or has sub-groups (opened in a slide-out menu).
   ISO.CATEGORIES = [
     {
@@ -168,11 +197,12 @@
     return v > 0 ? v : ISO.typicalLength(type, dn);
   };
 
-  // Personal / company settings, kept in this browser (not in the drawing file)
+  // Settings of the app, kept in this browser (not in the drawing file): company details, export options,
+  // title block template, standard lengths, display, and the drawing options (drawSettings)
   const PROFILE_KEY = 'pipeiso.profile.v1';
   ISO.profile = (() => {
     // logoSvg = company logo (cleaned SVG text); logo = old PNG logo, no longer used
-    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, exportGrid: true, exportLegend: true, titleTpl: {} };
+    let data = { logoSvg: '', logo: '', site: '', creator: '', paper: 'A3', lengths: {}, reducerStep: 1, favs: [], gridColor: '', showCompass: true, exportGrid: true, exportLegend: true, titleTpl: {}, supLen: {} };
     try { Object.assign(data, JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')); } catch (e) { /* ignore */ }
     return {
       get: () => data,
@@ -193,6 +223,16 @@
   // (not the project name, which is set per drawing, and not the date, which is always today)
   ISO.TEMPLATE_FIELDS = ISO.TITLE_FIELDS.filter((k) => k !== 'project' && k !== 'date').concat('notes');
 
+  // Drawing options (grid, snap, default sizes, dimensions, angles, flanges, …) are settings of the app:
+  // they are kept in this browser and apply to every drawing – new ones and opened ones.
+  // A drawing file still carries a copy, so it can be read elsewhere.
+  ISO.DRAW_DEFAULTS = {
+    gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showAngles: true, showCompSizes: true,
+    gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends', newFlKF: 'auto', newFlK: 'auto',
+  };
+  /** The app's drawing options: the defaults with your own choices. */
+  ISO.appDrawSettings = () => Object.assign({}, ISO.DRAW_DEFAULTS, (ISO.profile && ISO.profile.get().drawSettings) || {});
+
   /** New empty drawing. useTemplate = start the title block from the template in Settings. */
   ISO.newDoc = (useTemplate = true) => {
     const prof = ISO.profile ? ISO.profile.get() : {};
@@ -208,7 +248,7 @@
     return {
       app: 'PipeIso',
       version: 1,
-      settings: { gridStep: 500, snap: 100, defaultStd: 'KF', defaultDnKF: 40, defaultDnK: 100, showDims: true, showAngles: true, showCompSizes: true, gridSnap: true, showWelds: false, gridStyle: 'lines', paperOnSheet: false, angles: '90', autoFlange: 'ends' },
+      settings: ISO.appDrawSettings(),
       title,
       nodes: {},
       pipes: [],
@@ -223,8 +263,7 @@
     if (!raw || typeof raw !== 'object' || !raw.nodes || !Array.isArray(raw.pipes)) {
       throw new Error(ISO.t('err.notPipeIso'));
     }
-    const d = ISO.newDoc(false);
-    d.settings = Object.assign(d.settings, raw.settings || {});
+    const d = ISO.newDoc(false); // the app's drawing options apply, not the ones saved in the file
     d.title = Object.assign(d.title, raw.title || {});
     d.nodes = raw.nodes;
     d.pipes = raw.pipes;
@@ -303,6 +342,10 @@
     const tp = v3.len(v3.sub(pt, a)) / L;
     const nid = ISO.addNode(doc, pt);
     const np = { id: ISO.uid(doc, 'p'), a: nid, b: pipe.b, std: pipe.std, dn: pipe.dn, hideDim: pipe.hideDim, dimFlip: pipe.dimFlip };
+    if (ISO.FLANGE_OPTS.includes(pipe.fl)) { // the flanges stay at the old ends, none at the new point
+      np.fl = flOf(false, flAt(pipe, pipe.b));
+      pipe.fl = flOf(flAt(pipe, pipe.a), false);
+    }
     pipe.b = nid;
     doc.pipes.push(np);
     const remap = (o) => {
@@ -334,6 +377,19 @@
     if (doc.pipes.some((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))) return null;
     const sp = spec && spec.std ? spec : ISO.defaultSpec(doc);
     const p = { id: ISO.uid(doc, 'p'), a, b, std: sp.std, dn: sp.dn };
+    // Flanges for new pipes of this standard (Settings / bar above the drawing) – but never where pipes join:
+    // a new pipe gets no flange at a point that already has a pipe (elbow / tee), and a pipe already there
+    // loses its flange at that point (it was an open end before)
+    const deg = ISO.nodeDegrees(doc);
+    const fl = doc.settings['newFl' + sp.std];
+    if (ISO.FLANGE_OPTS.includes(fl)) p.fl = flOf(/start|both/.test(fl) && !deg[a], /end|both/.test(fl) && !deg[b]);
+    [a, b].forEach((n) => {
+      if (!deg[n]) return;
+      ISO.pipesAt(doc, n).forEach((q) => {
+        if (q.comp || !flAt(q, n)) return;
+        q.fl = n === q.a ? flOf(false, flAt(q, q.b)) : flOf(flAt(q, q.a), false);
+      });
+    });
     doc.pipes.push(p);
     return p;
   };
@@ -391,6 +447,7 @@
     const n2 = start + L < Lp - 0.5 ? ISO.addNode(doc, v3.add(a, v3.scale(dir, start + L))) : endB;
     const c = Object.assign({ id: ISO.uid(doc, 'p'), a: n1, b: n2 }, { std: sp.std, dn: sp.dn, comp });
     if (ISO.isReducer(comp.type) && !comp.dn2) { const o = ISO.nextSmaller(sp.std, sp.dn); comp.std2 = o.std; comp.dn2 = o.dn; }
+    const flS = flAt(pipe, pipe.a), flE = flAt(pipe, endB); // flange choice at the old ends (null = automatic)
     let head = null, tail = null;
     if (n1 !== pipe.a) { head = pipe; pipe.b = n1; }
     if (n2 !== endB) {
@@ -398,6 +455,10 @@
       else { tail = pipe; pipe.a = n2; }
     }
     if (!head && !tail) doc.pipes = doc.pipes.filter((p) => p !== pipe);
+    if (flS !== null) { // keep flanges at the old pipe ends, none next to the new component
+      if (head) head.fl = flOf(flS, false);
+      if (tail) tail.fl = flOf(false, flE);
+    }
     doc.pipes.push(c);
     att.forEach(({ x, d }) => {
       if (d < start && head) { x.pipeId = head.id; x.t = clampN(d / start, 0.02, 0.98); }
@@ -459,6 +520,8 @@
           x.pipeId = p.id; x.t = d / (Lp + Lq);
         };
         doc.fittings.concat(doc.labels).forEach((x) => { if (x.pipeId === p.id) toNew(x, true); else if (x.pipeId === q.id) toNew(x, false); });
+        const fs = flAt(p, pe), fe = flAt(q, qe);
+        if (fs !== null || fe !== null) p.fl = flOf(!!fs, !!fe);
         p.a = pe; p.b = qe;
         doc.pipes = doc.pipes.filter((x) => x !== q);
         delete doc.nodes[c.a];
