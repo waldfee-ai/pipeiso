@@ -521,14 +521,14 @@
     pipeRows.forEach((e) => rows.push({ icon: { std: e.std }, label: T('sb.pipe'), size: dnTxt(e.std, e.dn), qty: metres(e.mm), pos: true }));
     if (pipeRows.length > 1) rows.push({ icon: null, label: T('bom.pipeTotal'), size: '', qty: metres(pipeRows.reduce((s, e) => s + e.mm, 0)), total: true });
 
-    // Elbows (bend angle = 180° − angle between the pipes), tees and crosses
+    // Elbows (named by their bend: 90°, 45° …; the drawing shows the angle between the pipes, 180° − bend), tees and crosses
     const sizeAt = (ps) => {
       const s = [...new Set(ps.map((p) => p.std + ':' + p.dn))].map((k) => { const [std, dn] = k.split(':'); return { std, dn: +dn }; }).sort(sortBySize).reverse();
       return s.length === 1 ? dnTxt(s[0].std, s[0].dn) : s.map((x) => 'DN' + x.dn).join(' × ');
     };
     const bends = ISO.elbowAngles(doc).map((a) => ({ bend: Math.round((180 - a.deg) * 10) / 10, size: sizeAt(ISO.pipesAt(doc, a.id)) }));
     tally(bends, (b) => b.bend + '|' + b.size).sort((x, y) => y.first.bend - x.first.bend).forEach((e) =>
-      rows.push({ icon: { kind: 'elbow' }, label: T('bom.elbow', { a: e.first.bend }), size: e.first.size, qty: String(e.n), pos: true }));
+      rows.push({ icon: { kind: 'elbow' }, label: T('bom.elbow', { a: String(e.first.bend).replace('.', ISO.getLang() === 'de' ? ',' : '.') }), size: e.first.size, qty: String(e.n), pos: true }));
     const deg = ISO.nodeDegrees(doc);
     const junctions = Object.keys(doc.nodes).filter((id) => deg[id] >= 3).map((id) => ({ n: deg[id], size: sizeAt(ISO.pipesAt(doc, id)) }));
     tally(junctions, (j) => (j.n === 3 ? 'tee' : 'cross') + '|' + j.size).forEach((e) =>

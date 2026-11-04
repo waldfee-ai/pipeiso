@@ -16,7 +16,7 @@ No installation, no build step, no internet connection needed: just open `index.
 - Grid lines (isometric paper) are shown in the export (PDF, DXF and print); they can be switched off in Settings → Export
 - **Pipe tool** that snaps to the six iso directions. You can click to place a pipe, or type an exact length in mm and press Enter
 - Elbows are created automatically at each change of direction. Starting on an existing pipe creates a **tee**
-- **Pipe angles**: 90° only, or 45° and 90°. 45° pipes are drawn in one plane at a time: horizontal, vertical East–West or vertical North–South. Switch the plane with `Tab` or the buttons above the drawing
+- **Pipe angles**: 90° only, or 45° and 90°. 45° pipes are drawn in one plane at a time: horizontal, vertical East–West or vertical North–South. Switch the plane with `Tab`, the buttons above the drawing or the round **90° ⇄ 45°** button at the bottom right (handy on a phone). While drawing, hold `Shift` for 45° horizontal or `Alt` for 45° vertical; releasing goes back. A shaded square at the start point shows the active plane, and the direction label is orange for a 45° pipe and grey for 90°. Two pipes never meet at an angle under 90°: a 45° elbow gives 135° between the pipes, and sharper turns are not offered (also not in the direction lists when editing)
 - **Vacuum pipe standards**: ISO-KF (DN10–DN50) and ISO-K (DN63–DN630), each with its own pipe tool. Sizes are metric (DN); ISO-K pipes are drawn thicker
 - **Component categories** in the palette (click a heading to collapse it):
   - Favorites: click ☆ on any item (or long-press it) to pin it here
@@ -44,7 +44,7 @@ No installation, no build step, no internet connection needed: just open `index.
 - **Edit pipe lengths** after drawing: everything downstream moves with the pipe
 - Undo/redo, zoom and pan, and autosave in the browser. Zooming steps through the standard scales 1:1, 1:2, 1:5, 1:10, 1:20, 1:25, 1:50, 1:100, 1:200, 1:250, 1:500, 1:1000 and 1:2000 (on screen, at the standard 96 dpi); the current scale is shown and can be picked at the bottom left of the drawing
 - **Title block** (project, line no., spec, material, revision, drawn/checked by, notes)
-- **Parts list (BOM) with legend** in the notes field of the exported sheet, as a table (Pos., symbol, item, size, quantity): total pipe length per size (and overall), elbows by angle, tees, all components and fittings per size, flanges at pipe ends, the number of flanges in total, supports with their width, welds, and the marks that are only explained (flow arrow, angle marks). Switch in Settings → Export
+- **Parts list (BOM) with legend** in the notes field of the exported sheet, as a table (Pos., symbol, item, size, quantity): total pipe length per size (and overall), elbows by their bend (90°, 45° …), tees, all components and fittings per size, flanges at pipe ends, the number of flanges in total, supports with their width, welds, and the marks that are only explained (flow arrow, angle marks). Switch in Settings → Export
 - **Settings** (gear button): company logo (SVG), company website and creator name for the title block; a **title block template** (client, spec, material, drawn/checked by, notes, …) that new drawings start with; paper size DIN A4 or A3; your own standard face-to-face lengths per component and nominal size; reducer small end (one or two sizes smaller); paper line colour and compass on/off; all drawing options. All settings belong to the app, not to a single drawing: they are kept in this browser and apply to every new drawing and to drawings you open (a drawing file still carries a copy)
 - **Settings backup**: export all settings to a `pipeiso-settings.json` file and import them in another browser or on another device
 - **Company logo as SVG**: printed sharp in the title block of the PDF and print, and converted to lines on its own layer `LOGO` in the DXF (curves become short straight pieces, filled areas become outlines). The uploaded file is cleaned first: scripts, links to other files and embedded pictures are removed. Tip: convert texts to paths before saving the SVG
@@ -92,6 +92,7 @@ Opened as a file (`index.html` on your computer) the app works the same, but can
 | `X` / `C` | Flip the selected component's side / direction |
 | `G` / `F` / `R` / `B` / `A` | Gate valve / Flange / Reducer / Bellows / Flow arrow |
 | `Tab` | Switch the plane for 45° pipes (Pipe tool, 45° enabled) |
+| hold `Shift` / `Alt` | Draw 45° horizontal / 45° vertical while held (Pipe tool, 45° enabled) |
 | Double-click | Continue from a pipe end / end the current run |
 | digits + `Enter` | Exact pipe length while drawing |
 | `Esc` | End the run / back to Select |

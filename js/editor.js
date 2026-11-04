@@ -16,12 +16,13 @@
   const typedEl = $('#typed');
   const popupEl = $('#popup');
   const finishBtn = $('#finishBtn');
+  const planeBtn = $('#planeBtn');
 
   // Colours of the drawing on screen for the light and the dark look (the exported sheet is always black on white).
   // Selection and hover use the orange accent.
   const LOOKS = {
-    light: { col: '#1d2733', bg: '#ffffff', dimCol: '#5b6b7c', selCol: '#ea580c', hoverCol: '#f59e5b', nodeStroke: '#64707d', tagBg: '#1d2733', compass: '#64707d', compassN: '#ea580c', snap: '#15803d' },
-    dark: { col: '#e3e9ef', bg: '#11161c', dimCol: '#8d9bab', selCol: '#fb923c', hoverCol: '#fdba74', nodeStroke: '#94a2b0', tagBg: '#3a4552', compass: '#94a2b0', compassN: '#fb923c', snap: '#4ade80' },
+    light: { col: '#1d2733', bg: '#ffffff', dimCol: '#5b6b7c', selCol: '#ea580c', hoverCol: '#f59e5b', nodeStroke: '#64707d', tagBg: '#1d2733', tag90: '#64707d', tag45: '#ea580c', compass: '#64707d', compassN: '#ea580c', snap: '#15803d' },
+    dark: { col: '#e3e9ef', bg: '#11161c', dimCol: '#8d9bab', selCol: '#fb923c', hoverCol: '#fdba74', nodeStroke: '#94a2b0', tagBg: '#3a4552', tag90: '#4b5563', tag45: '#ea580c', compass: '#94a2b0', compassN: '#fb923c', snap: '#4ade80' },
   };
   const STYLE = Object.assign({ sym: 10, font: 11.5, lw: 3, thin: 1 }, LOOKS[document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light']);
   const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
@@ -55,6 +56,7 @@
   let drag = null;
   let spaceDown = false;
   let plane = 'axes';   // active plane for 45° pipes: axes | h | xz | yz
+  let holdPlane = null; // plane while Shift (h) or Alt (v) is held, else null
   let lastPtr = 'mouse';
   let popup = null;     // edit popup state: {kind, id, at:[x,y], t, msg}
   const newLen = {};    // face-to-face length chosen for new components, per type (empty = typical length)
@@ -373,8 +375,34 @@
 
   /** Directions available for drawing right now. */
   function activeDirs() {
-    if (doc.settings.angles !== '45') return ISO.PLANES.axes;
-    return ISO.PLANES[plane] || ISO.PLANES.axes;
+    return ISO.PLANES[curPlane()] || ISO.PLANES.axes;
+  }
+  /** Plane used for drawing right now: a held Shift/Alt wins over the chosen one; always 90° when 45° is off. */
+  function curPlane() {
+    if (doc.settings.angles !== '45') return 'axes';
+    return holdPlane || plane;
+  }
+  /** Shift held = 45° horizontal, Alt held = 45° vertical; released = back to the chosen plane. */
+  function setHold(e) {
+    const p = tool === 'pipe' && doc.settings.angles === '45' ? (e.altKey ? 'v' : e.shiftKey ? 'h' : null) : null;
+    if (p === holdPlane) return;
+    holdPlane = p;
+    refreshPlane();
+  }
+  function refreshPlane() {
+    updatePlaneBtn();
+    if (tool === 'pipe' && mouse) preview = run ? runPreview(mouse) : startCandidate(mouse);
+    render(); updateStatus();
+  }
+  /** The round 90° ⇄ 45° button shows the plane in use; orange when it is a 45° plane. */
+  function updatePlaneBtn() {
+    planeBtn.hidden = !(tool === 'pipe' && doc.settings.angles === '45');
+    if (planeBtn.hidden) return;
+    const p = curPlane();
+    planeBtn.classList.toggle('on45', p !== 'axes');
+    planeBtn.classList.toggle('held', !!holdPlane);
+    planeBtn.innerHTML = `<b>${p === 'axes' ? '90°' : '45°'}</b><small>${esc(p === 'axes' ? '⇄ 45°' : T('planeS.' + p))}</small>`;
+    planeBtn.title = T('tip.planeBtn', { p: T('plane.' + p) });
   }
   /** All directions that can be chosen in the edit popup. */
   function allDirs() {
@@ -388,7 +416,9 @@
   function dirChoices(pipe) {
     const [a, b] = ISO.pipeEnds(doc, pipe);
     const cur = ISO.dirOf(a, b);
-    const dirs = allDirs();
+    // only directions that make no angle under 90° with the pipes at either end (everything beyond b moves along)
+    const dirs = allDirs().filter((D) => (cur && D.key === cur.key) ||
+      (angleOk(a, D.v, pipe) && angleOk(b, v3.scale(D.v, -1), pipe)));
     if (cur && !dirs.some((D) => D.key === cur.key)) dirs.push(cur);
     return { cur, opts: (cur ? [] : [['', T('sb.oblique')]]).concat(dirs.map((D) => [D.key, ISO.dirName(D)])) };
   }
@@ -403,8 +433,7 @@
   function setPlane(p) {
     plane = p;
     updatePlanebar();
-    if (tool === 'pipe' && run && mouse) preview = runPreview(mouse);
-    render(); updateStatus();
+    refreshPlane();
   }
   function updatePlanebar() {
     const bar = $('#planebar');
@@ -426,6 +455,7 @@
       inp.addEventListener('input', () => { const v = parseFloat(inp.value); newLen[tool] = v > 0 ? v : ''; updateStatus(); });
     }
     finishBtn.hidden = !(tool === 'pipe' && run);
+    updatePlaneBtn();
   }
   /** Length a new component of this type would get on this pipe. */
   function insertLength(type, pipe) {
@@ -566,14 +596,35 @@
     return pts;
   }
 
+  // ---------- smallest angle between two pipes ----------
+  // Pipes may meet at 90° or more (a 45° elbow gives 135° between the pipes); sharper angles are not drawn.
+  /** May a pipe leave point pt in direction vec (unit, 3D)? True when its angle to every pipe already there is at least 90°.
+   *  skip = a pipe to leave out (the one being turned). */
+  function angleOk(pt, vec, skip) {
+    const id = ISO.findNode(doc, pt);
+    if (!id) return true;
+    return ISO.pipesAt(doc, id).every((q) => {
+      if (q === skip) return true;
+      const u = v3.sub(ISO.nodePt(doc, q.a === id ? q.b : q.a), pt), L = v3.len(u);
+      return L < 1e-6 || (u[0] * vec[0] + u[1] * vec[1] + u[2] * vec[2]) / L <= 1e-6;
+    });
+  }
+  const unit = (a, b) => { const d = v3.sub(b, a), L = v3.len(d); return v3.scale(d, 1 / L); };
+  /** May a pipe (or route) from a to b be drawn: no angle under 90° where it starts and where it arrives? */
+  const legOk = (a, b, first, last) => (!first || angleOk(a, unit(a, b))) && (!last || angleOk(b, unit(b, a)));
+
   function runPreview(s) {
     const start = run.start.pt;
     const S0 = P(start);
     const v = sub(s, S0);
     let dir = null, bd = -Infinity;
     for (const D of activeDirs()) {
+      if (!angleOk(start, D.v)) continue; // would make an angle under 90° with the pipe(s) at the start
       const dt = v[0] * D.s[0] + v[1] * D.s[1];
       if (dt > bd) { bd = dt; dir = D; }
+    }
+    if (!dir) { // (never expected) fall back to all directions
+      for (const D of activeDirs()) { const dt = v[0] * D.s[0] + v[1] * D.s[1]; if (dt > bd) { bd = dt; dir = D; } }
     }
     const k = Math.hypot(...ISO.iso(dir.v)); // screen length of 1 mm along this direction (per zoom)
     const step = doc.settings.snap;
@@ -596,10 +647,17 @@
       if (near) {
         const od = ISO.dirOf(start, near.q);
         const dd = od && activeDirs().find((D) => D.key === od.key);
-        if (dd) return { dir: dd, len: v3.len(v3.sub(near.q, start)), pt: near.q, route: [near.q], snap: { kind: 'end', id: near.id } };
-        // Not in line: connect with an orthogonal route (elbows added automatically)
-        const pref = dir.v.map(Math.abs).indexOf(Math.max(...dir.v.map(Math.abs)));
-        return { dir, len: null, pt: near.q, route: orthoRoute(start, near.q, pref), snap: { kind: 'route', id: near.id } };
+        if (dd) {
+          if (legOk(start, near.q, true, true)) return { dir: dd, len: v3.len(v3.sub(near.q, start)), pt: near.q, route: [near.q], snap: { kind: 'end', id: near.id } };
+        } else {
+          // Not in line: connect with an orthogonal route (elbows added automatically) – if it makes no angle under 90°
+          const pref = dir.v.map(Math.abs).indexOf(Math.max(...dir.v.map(Math.abs)));
+          const route = orthoRoute(start, near.q, pref);
+          const pts = [start].concat(route);
+          if (route.length && legOk(pts[0], pts[1], true, false) && legOk(pts[pts.length - 2], pts[pts.length - 1], false, true)) {
+            return { dir, len: null, pt: near.q, route, snap: { kind: 'route', id: near.id } };
+          }
+        }
       }
       // 2) Snap onto an existing pipe crossing this direction (creates a tee)
       for (const pipe of doc.pipes) {
@@ -713,6 +771,20 @@
   const ring = (c, r, col, w = 2) => `<circle cx="${r2(c[0])}" cy="${r2(c[1])}" r="${r}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
   const dot = (c, r, col) => `<circle cx="${r2(c[0])}" cy="${r2(c[1])}" r="${r}" fill="${col}"/>`;
 
+  /** Lightly shaded square of the active 45° plane around a model point: flat for horizontal, upright for vertical. */
+  const PATCH_AXES = { h: [[1, 0, 0], [0, 1, 0]], xz: [[1, 0, 0], [0, 0, 1]], yz: [[0, 1, 0], [0, 0, 1]] };
+  function planePatch(pt) {
+    const p = curPlane();
+    const sets = p === 'v' ? [PATCH_AXES.xz, PATCH_AXES.yz] : PATCH_AXES[p] ? [PATCH_AXES[p]] : [];
+    const C = P(pt), r = 34;
+    return sets.map(([a, b]) => {
+      const sd = (v) => { const q = P(v3.add(pt, v)); const L = Math.hypot(q[0] - C[0], q[1] - C[1]) || 1; return [(q[0] - C[0]) / L * r, (q[1] - C[1]) / L * r]; };
+      const u = sd(a), w = sd(b);
+      const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => `${r2(C[0] + i * u[0] + j * w[0])},${r2(C[1] + i * u[1] + j * w[1])}`).join(' ');
+      return `<polygon class="plane-patch" points="${pts}" fill="${STYLE.tag45}" fill-opacity=".13" stroke="${STYLE.tag45}" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 3"/>`;
+    }).join('');
+  }
+
   function overlaySvg() {
     const o = [];
     const sc = STYLE.selCol;
@@ -728,6 +800,7 @@
     }
     if (tool === 'pipe' && preview) {
       if (run) {
+        o.push(planePatch(run.start.pt));
         const A = P(run.start.pt);
         const route = preview.route.map(P);
         const d = 'M' + [A].concat(route).map((p) => r2(p[0]) + ' ' + r2(p[1])).join('L');
@@ -746,9 +819,12 @@
         else o.push(dot(B, 4, sc));
         const txt = preview.len == null ? T('tag.pipes', { n: route.length }) : `${ISO.dirName(preview.dir)} ${fmt(preview.len)} mm`;
         const mid = lerp(A, route[0], 0.5);
-        o.push(tag(mid[0] + 12, mid[1] - 14, txt, STYLE.tagBg));
+        // grey label for a 90° direction, orange for a 45° one
+        const is45 = preview.dir && preview.dir.keys.length > 1;
+        o.push(tag(mid[0] + 12, mid[1] - 14, txt, is45 ? STYLE.tag45 : STYLE.tag90));
         if (snap && snap.kind !== 'grid') o.push(tag(B[0] + 14, B[1] + 18, snapText(snap.kind), STYLE.snap));
       } else {
+        o.push(planePatch(preview.pt));
         const A = P(preview.pt);
         if (preview.snap && preview.snap.kind === 'grid') {
           o.push(ring(A, 6, STYLE.snap, 2) + dot(A, 2, STYLE.snap));
@@ -850,7 +926,7 @@
     else if (tool === 'edit') s = T('st.edit');
     else if (tool === 'pipe') {
       const snapTxt = preview && preview.snap ? T('st.snap', { s: snapText(preview.snap.kind) }) : '';
-      const planeTxt = doc.settings.angles === '45' ? T('st.plane', { p: T('plane.' + plane) }) : '';
+      const planeTxt = doc.settings.angles === '45' ? T('st.plane', { p: T('plane.' + curPlane()) }) : '';
       if (run && preview && preview.len == null) s = T('st.pipeRoute', { n: preview.route.length }) + snapTxt;
       else if (run && preview) s = T('st.pipeRun', { dir: ISO.dirName(preview.dir), len: fmt(preview.len) }) + snapTxt + planeTxt;
       else s = T('st.pipeStart') + snapTxt + planeTxt;
@@ -1434,11 +1510,9 @@
       if (!pipe) { closePopup(); return; }
       const [a, b] = ISO.pipeEnds(doc, pipe);
       const cur = ISO.dirOf(a, b);
-      const dirs = allDirs();
-      if (cur && !dirs.some((D) => D.key === cur.key)) dirs.push(cur);
       h += `<h3>${esc(T('sb.pipe'))} · ${esc(ISO.sizeLabel(pipe))} ${close}</h3>`;
       h += field(T('sb.length'), num('pp-len', Math.round(ISO.pipeLen(doc, pipe)), 'min="1" step="1"'));
-      h += field(T('pp.angle'), select('pp-dir', cur ? cur.key : '', (cur ? [] : [['', T('sb.oblique')]]).concat(dirs.map((D) => [D.key, ISO.dirName(D)]))));
+      h += field(T('pp.angle'), select('pp-dir', cur ? cur.key : '', dirChoices(pipe).opts));
       if (doc.settings.angles !== '45') h += `<div class="note">${esc(T('pp.hint45'))}</div>`;
       h += '<div class="row2">' + field(T('sb.standard'), select('pp-std', pipe.std, stdOpts())) + field(T('sb.dn'), select('pp-dn', pipe.dn, dnOpts(pipe.std))) + '</div>';
       h += field(T('sb.flanges'), select('pp-fl', pipe.fl || 'auto', flOpts()));
@@ -1769,6 +1843,7 @@
 
   svg.addEventListener('pointermove', (e) => {
     const s = evPos(e);
+    if (e.pointerType === 'mouse') setHold(e); // Shift/Alt may have been pressed while another window had focus
     if (e.pointerType === 'touch') {
       if (!touches.has(e.pointerId)) return;
       touches.set(e.pointerId, s);
@@ -1881,6 +1956,12 @@
   }, { passive: false });
 
   finishBtn.addEventListener('click', () => { endRun(); svg.focus({ preventScroll: true }); });
+  // round 90° ⇄ 45° button: 90° → 45° horizontal → 45° vertical E–W → 45° vertical N–S → 90°
+  planeBtn.addEventListener('click', () => {
+    const i = ISO.PLANE_ORDER.indexOf(plane);
+    setPlane(ISO.PLANE_ORDER[(i + 1) % ISO.PLANE_ORDER.length]);
+    svg.focus({ preventScroll: true });
+  });
 
   // ---------- keyboard ----------
   window.addEventListener('keydown', (e) => {
@@ -1898,6 +1979,11 @@
       return;
     }
     if (settingsDlg.open || shareDlg.open) return;
+    if (k === 'Shift' || k === 'Alt') {
+      if (k === 'Alt' && tool === 'pipe') e.preventDefault(); // keep the browser menu from taking focus
+      setHold(e);
+      return;
+    }
     if (k === '+' || k === '=' || k === '-') {
       e.preventDefault();
       setScale(scaleIndex(view.zoom) + (k === '-' ? 1 : -1), mouse);
@@ -1945,8 +2031,14 @@
     const f = Object.entries(ISO.FITTINGS).find(([, d]) => d.key === lk);
     if (f) setTool(f[0]);
   });
-  window.addEventListener('keyup', (e) => { if (e.key === ' ') { spaceDown = false; render(); } });
-  window.addEventListener('blur', () => { spaceDown = false; });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === ' ') { spaceDown = false; render(); }
+    if (e.key === 'Shift' || e.key === 'Alt') {
+      if (e.key === 'Alt' && tool === 'pipe') e.preventDefault();
+      setHold(e);
+    }
+  });
+  window.addEventListener('blur', () => { spaceDown = false; if (holdPlane) { holdPlane = null; refreshPlane(); } });
   window.addEventListener('resize', () => {
     if (isMobile() !== paletteMobile) { closeFlyout(); buildPalette(); gridKey = ''; }
     render(); if (popup) placePopup();

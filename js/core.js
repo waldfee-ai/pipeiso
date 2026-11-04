@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const ISO = (window.ISO = window.ISO || {});
-  ISO.VERSION = '2026-10-29.1'; // shown in Settings; raise it with every release
+  ISO.VERSION = '2026-11-04.3'; // shown in Settings; raise it with every release
   const C = Math.cos(Math.PI / 6);
   ISO.C = C;
 
@@ -139,6 +139,8 @@
     h: ['E', 'W', 'N', 'S', 'EN', 'ES', 'WN', 'WS'],
     xz: ['E', 'W', 'U', 'D', 'EU', 'ED', 'WU', 'WD'],
     yz: ['N', 'S', 'U', 'D', 'NU', 'ND', 'SU', 'SD'],
+    // both vertical 45° planes at once (Alt held): without the horizontal axes these ten all look different on screen
+    v: ['U', 'D', 'EU', 'ED', 'WU', 'WD', 'NU', 'ND', 'SU', 'SD'],
   };
   ISO.PLANE_ORDER = ['axes', 'h', 'xz', 'yz'];
   Object.keys(ISO.PLANES).forEach((k) => { ISO.PLANES[k] = ISO.PLANES[k].map(mkDir); });

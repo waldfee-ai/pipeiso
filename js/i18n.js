@@ -36,15 +36,17 @@
     'cmp.E': 'E', 'cmp.N': 'N', 'cmp.U': 'Up',
     'coord': 'E {e}  N {n}  EL {z}',
 
-    'plane.axes': '90°', 'plane.h': '45° horizontal', 'plane.xz': '45° vertical E–W', 'plane.yz': '45° vertical N–S',
+    'plane.axes': '90°', 'plane.h': '45° horizontal', 'plane.xz': '45° vertical E–W', 'plane.yz': '45° vertical N–S', 'plane.v': '45° vertical',
+    'planeS.h': 'horiz.', 'planeS.xz': 'E–W', 'planeS.yz': 'N–S', 'planeS.v': 'vert.',
     'tip.plane': 'Plane for 45° pipes (Tab switches)',
+    'tip.planeBtn': 'Now: {p}. Tap to switch 90° → 45° horizontal → 45° vertical E–W → 45° vertical N–S (Tab). Hold Shift for 45° horizontal, Alt for 45° vertical.',
 
     'st.select': 'Click to select · click a dimension to move it to the other side · X / C flip a selected component · double-click a pipe end to continue drawing · drag fittings and labels to move them · <b>Del</b> deletes · wheel zooms · middle-drag or Space+drag pans',
     'st.pipeStart': 'Click or tap a start point: empty space, an existing point (snaps), or on a pipe (makes a tee)',
     'st.pipeRun': '<b>{dir} {len} mm</b> — click to place, or type a length and press <b>Enter</b> · <b>Esc</b>, right-click or a double click / double tap ends the run',
     'st.pipeRoute': '<b>Connect to point with {n} pipes</b> (elbows added automatically) — click to connect',
     'st.snap': ' · snap: <b>{s}</b>',
-    'st.plane': ' · <b>{p}</b> (Tab switches)',
+    'st.plane': ' · <b>{p}</b> (Tab or the round button switches · hold Shift: 45° horizontal, Alt: 45° vertical)',
     'st.label': 'Click on a pipe to attach a label',
     'st.pan': 'Drag to pan · wheel to zoom',
     'st.fitting': 'Click on a pipe to place: <b>{name}</b>',
@@ -174,7 +176,7 @@
       <p>3. <kbd>Esc</kbd>, right-click, a double click / double tap or <b>Finish run</b> ends the run. Start on a pipe to make a tee. Double-click a pipe end to continue it.</p>
       <p>4. Use <b>Edit</b> <kbd>E</kbd> on a pipe to change its length, angle or nominal size, or to add a bend.</p>
       <p>5. Pick a component and click on a pipe. Valves, reducers, bellows and hoses are added into the pipe with their own length (the pipe gets longer); set the length in the bar above the drawing. Components face the side and end you clicked nearest to. <kbd>X</kbd> flips the side, <kbd>C</kbd> the direction.</p>
-      <p>6. For 45° pipes, set <b>Pipe angles</b> to 45° and 90°, then switch the plane with <kbd>Tab</kbd>.</p>
+      <p>6. For 45° pipes, set <b>Pipe angles</b> to 45° and 90°, then switch the plane with <kbd>Tab</kbd> or the round <b>90° ⇄ 45°</b> button at the bottom right. Or hold <kbd>Shift</kbd> for 45° horizontal and <kbd>Alt</kbd> for 45° vertical while drawing. The shaded square at the start point shows the plane, and the direction label turns orange for a 45° pipe. A 45° elbow gives 135° between the pipes; sharper turns are not possible.</p>
       <p>7. Fill in the title block, then use <b>PDF</b> or <b>Share</b>. Company logo, website, creator and paper size (A4 / A3) are in <b>Settings</b>.</p>
       <p>Click ☆ on any palette item (or long-press it) to add it to Favorites. Valves are grouped – click a group to open it.</p>
       <p>On a phone: drag with one finger to pan, pinch to zoom. Long-press a pipe or component to change its length, size or type. The parts are grouped in the bottom bar: tap a group to open it, long-press a group to move it.</p>
@@ -216,15 +218,17 @@
     'cmp.E': 'O', 'cmp.N': 'N', 'cmp.U': 'Auf',
     'coord': 'O {e}  N {n}  H {z}',
 
-    'plane.axes': '90°', 'plane.h': '45° waagerecht', 'plane.xz': '45° senkrecht O–W', 'plane.yz': '45° senkrecht N–S',
+    'plane.axes': '90°', 'plane.h': '45° waagerecht', 'plane.xz': '45° senkrecht O–W', 'plane.yz': '45° senkrecht N–S', 'plane.v': '45° senkrecht',
+    'planeS.h': 'waag.', 'planeS.xz': 'O–W', 'planeS.yz': 'N–S', 'planeS.v': 'senkr.',
     'tip.plane': 'Ebene für 45°-Rohre (Tab wechselt)',
+    'tip.planeBtn': 'Jetzt: {p}. Antippen wechselt 90° → 45° waagerecht → 45° senkrecht O–W → 45° senkrecht N–S (Tab). Umschalt halten: 45° waagerecht, Alt halten: 45° senkrecht.',
 
     'st.select': 'Klicken zum Auswählen · Klick auf eine Bemaßung legt sie auf die andere Seite · X / C kehren ein gewähltes Bauteil um · Doppelklick auf ein Rohrende zeichnet weiter · Armaturen und Texte per Ziehen verschieben · <b>Entf</b> löscht · Mausrad zoomt · mittlere Maustaste oder Leertaste+Ziehen verschiebt',
     'st.pipeStart': 'Startpunkt klicken oder antippen: freie Fläche, vorhandener Punkt (fängt) oder auf ein Rohr (ergibt ein T-Stück)',
     'st.pipeRun': '<b>{dir} {len} mm</b> — klicken zum Setzen oder Länge eintippen und <b>Enter</b> · <b>Esc</b>, Rechtsklick oder Doppelklick / Doppeltippen beendet den Strang',
     'st.pipeRoute': '<b>Mit {n} Rohren zum Punkt verbinden</b> (Bögen werden automatisch gesetzt) — klicken zum Verbinden',
     'st.snap': ' · Fang: <b>{s}</b>',
-    'st.plane': ' · <b>{p}</b> (Tab wechselt)',
+    'st.plane': ' · <b>{p}</b> (Tab oder runder Knopf wechselt · Umschalt halten: 45° waagerecht, Alt: 45° senkrecht)',
     'st.label': 'Auf ein Rohr klicken, um einen Text anzuhängen',
     'st.pan': 'Ziehen zum Verschieben · Mausrad zum Zoomen',
     'st.fitting': 'Auf ein Rohr klicken zum Setzen: <b>{name}</b>',
@@ -355,7 +359,7 @@
       <p>3. <kbd>Esc</kbd>, Rechtsklick, Doppelklick / Doppeltippen oder <b>Strang beenden</b> beendet den Strang. Auf einem Rohr beginnen ergibt ein T-Stück. Doppelklick auf ein Rohrende zeichnet dort weiter.</p>
       <p>4. Mit <b>Bearbeiten</b> <kbd>E</kbd> auf einem Rohr Länge, Winkel oder Nennweite ändern oder einen Bogen einfügen.</p>
       <p>5. Ein Bauteil wählen und auf ein Rohr klicken. Armaturen, Reduzierungen, Kompensatoren und Schläuche werden mit ihrer Baulänge eingefügt (das Rohr wird länger); die Länge steht in der Leiste über der Zeichnung. Bauteile zeigen zur Seite und zum Ende, die dem Klick am nächsten sind. <kbd>X</kbd> kehrt die Seite um, <kbd>C</kbd> die Richtung.</p>
-      <p>6. Für 45°-Rohre <b>Rohrwinkel</b> auf 45° und 90° stellen und die Ebene mit <kbd>Tab</kbd> wechseln.</p>
+      <p>6. Für 45°-Rohre <b>Rohrwinkel</b> auf 45° und 90° stellen und die Ebene mit <kbd>Tab</kbd> oder dem runden Knopf <b>90° ⇄ 45°</b> unten rechts wechseln. Oder beim Zeichnen <kbd>Umschalt</kbd> für 45° waagerecht bzw. <kbd>Alt</kbd> für 45° senkrecht gedrückt halten. Das schattierte Quadrat am Startpunkt zeigt die Ebene, und die Richtungsanzeige wird bei einem 45°-Rohr orange. Ein 45°-Bogen ergibt 135° zwischen den Rohren; spitzere Winkel sind nicht möglich.</p>
       <p>7. Das Schriftfeld ausfüllen, dann <b>PDF</b> oder <b>Teilen</b> wählen. Firmenlogo, Website, Ersteller und Papierformat (A4 / A3) stehen in den <b>Einstellungen</b>.</p>
       <p>☆ an einem Element anklicken (oder lange drücken), um es zu den Favoriten hinzuzufügen. Armaturen sind gruppiert – eine Gruppe anklicken, um sie zu öffnen.</p>
       <p>Auf dem Smartphone: mit einem Finger verschieben, mit zwei Fingern zoomen. Ein Rohr oder Bauteil lange drücken, um Länge, Nennweite oder Typ zu ändern. Die Teile sind in der unteren Leiste gruppiert: eine Gruppe antippen zum Öffnen, lange drücken zum Verschieben.</p>
