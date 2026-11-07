@@ -416,7 +416,7 @@
   function dirChoices(pipe) {
     const [a, b] = ISO.pipeEnds(doc, pipe);
     const cur = ISO.dirOf(a, b);
-    // only directions that make no angle under 90° with the pipes at either end (everything beyond b moves along)
+    // only directions that meet the pipes at either end at 90°, 135° or 180° (everything beyond b moves along)
     const dirs = allDirs().filter((D) => (cur && D.key === cur.key) ||
       (angleOk(a, D.v, pipe) && angleOk(b, v3.scale(D.v, -1), pipe)));
     if (cur && !dirs.some((D) => D.key === cur.key)) dirs.push(cur);
@@ -596,9 +596,11 @@
     return pts;
   }
 
-  // ---------- smallest angle between two pipes ----------
-  // Pipes may meet at 90° or more (a 45° elbow gives 135° between the pipes); sharper angles are not drawn.
-  /** May a pipe leave point pt in direction vec (unit, 3D)? True when its angle to every pipe already there is at least 90°.
+  // ---------- angles between pipes ----------
+  // Pipes may only meet at 90° (90° elbow, tee), 135° (45° elbow) or straight on (180°).
+  // Other angles, e.g. 120° when two 45° pipes in different planes meet (a 60° bend), are not drawn.
+  const ANGLE_COS = [0, -Math.SQRT1_2, -1]; // cos of 90°, 135°, 180°
+  /** May a pipe leave point pt in direction vec (unit, 3D)? True when it meets every pipe already there at 90°, 135° or 180°.
    *  skip = a pipe to leave out (the one being turned). */
   function angleOk(pt, vec, skip) {
     const id = ISO.findNode(doc, pt);
@@ -606,11 +608,13 @@
     return ISO.pipesAt(doc, id).every((q) => {
       if (q === skip) return true;
       const u = v3.sub(ISO.nodePt(doc, q.a === id ? q.b : q.a), pt), L = v3.len(u);
-      return L < 1e-6 || (u[0] * vec[0] + u[1] * vec[1] + u[2] * vec[2]) / L <= 1e-6;
+      if (L < 1e-6) return true;
+      const c = (u[0] * vec[0] + u[1] * vec[1] + u[2] * vec[2]) / L;
+      return ANGLE_COS.some((k) => Math.abs(c - k) < 1e-4);
     });
   }
   const unit = (a, b) => { const d = v3.sub(b, a), L = v3.len(d); return v3.scale(d, 1 / L); };
-  /** May a pipe (or route) from a to b be drawn: no angle under 90° where it starts and where it arrives? */
+  /** May a pipe (or route) from a to b be drawn: only 90°, 135° or 180° where it starts and where it arrives? */
   const legOk = (a, b, first, last) => (!first || angleOk(a, unit(a, b))) && (!last || angleOk(b, unit(b, a)));
 
   function runPreview(s) {
@@ -619,7 +623,7 @@
     const v = sub(s, S0);
     let dir = null, bd = -Infinity;
     for (const D of activeDirs()) {
-      if (!angleOk(start, D.v)) continue; // would make an angle under 90° with the pipe(s) at the start
+      if (!angleOk(start, D.v)) continue; // would not meet the pipe(s) at the start at 90°, 135° or 180°
       const dt = v[0] * D.s[0] + v[1] * D.s[1];
       if (dt > bd) { bd = dt; dir = D; }
     }
